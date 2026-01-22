@@ -1,27 +1,19 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from app.core.config import settings
 
-app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.APP_VERSION,
-)
+app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
 
-# CORS（如果你是纯后端给前端域名用，建议只放你自己的域名）
-if settings.CORS_ALLOW_ORIGINS:
+origins = settings.cors_allow_origins_list
+if origins:
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ALLOW_ORIGINS,
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-@app.get("/health", tags=["system"])
+@app.get("/health")
 def health():
-    return {"ok": True, "service": settings.APP_NAME, "version": settings.APP_VERSION}
-
-@app.get("/v1/hello", tags=["demo"])
-def hello(name: str = "world"):
-    return {"message": f"hello, {name}"}
+    return {"ok": True}

@@ -6,14 +6,15 @@ class Settings(BaseSettings):
     APP_NAME: str = "edricd-fastapi"
     APP_VERSION: str = "0.1.0"
 
-    # 逗号分隔也行：CORS_ALLOW_ORIGINS="https://edricd.com,https://www.edricd.com"
-    CORS_ALLOW_ORIGINS: List[str] = Field(default_factory=list)
-
-    # 让 Uvicorn 正确识别反代后的真实 IP / 协议 (http/https)
-    FORWARDED_ALLOW_IPS: str = "*"
+    # 用逗号分隔： "http://edricd.com,http://www.edricd.com,https://edricd.com"
+    CORS_ALLOW_ORIGINS: str = Field(default="")
 
     class Config:
         env_file = ".env"
         case_sensitive = True
+
+    @property
+    def cors_allow_origins_list(self) -> List[str]:
+        return [x.strip() for x in self.CORS_ALLOW_ORIGINS.split(",") if x.strip()]
 
 settings = Settings()
