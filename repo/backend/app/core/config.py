@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "edricd-fastapi"
     APP_VERSION: str = "0.1.0"
 
-    # 用逗号分隔： "http://edricd.com,http://www.edricd.com,https://edricd.com"
+    # 逗号分隔字符串： "http://edricd.com,http://www.edricd.com,https://edricd.com"
     CORS_ALLOW_ORIGINS: str = Field(default="")
 
     class Config:

@@ -1,0 +1,28 @@
+services:
+  backend:
+    build: ./backend
+    container_name: edricd-backend
+    restart: unless-stopped
+    environment:
+      # 你当前只有 http，所以先只放 http
+      - CORS_ALLOW_ORIGINS=http://edricd.com,http://www.edricd.com
+    networks:
+      - web
+
+  nginx:
+    image: nginx:alpine
+    container_name: edricd-nginx
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    networks:
+      - web
+
+networks:
+  web:
+    driver: bridge
