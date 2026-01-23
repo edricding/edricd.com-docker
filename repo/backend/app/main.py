@@ -50,11 +50,11 @@ def render_contact_html(name: str, email: str, phone: str, message: str) -> str 
     except Exception:
         return None
 
-@app.get("/health")
+@app.get("/api/health")
 def health():
     return {"ok": True}
 
-@app.post("/contact")
+@app.post("/api/contact")
 def contact(payload: ContactPayload):
     smtp_host = os.getenv("SMTP_HOST", "")
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
