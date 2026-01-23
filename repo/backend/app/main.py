@@ -30,7 +30,7 @@ class ContactPayload(BaseModel):
     message: str
     phone: str | None = None
 
-EMAIL_TO = "d.singine@gmail.com"  # 固定收件人
+EMAIL_TO = "edricding0108@gmail.com"  # 固定收件人
 
 # --- Jinja2 模板加载（模板放在 app/templates/contact_email.html） ---
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
