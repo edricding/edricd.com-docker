@@ -1698,13 +1698,14 @@ section{
 .rewall_fn_contact .contact_form a:focus{
 	outline: 1px dashed #444;
 }
-.empty_notice{
+.empty_notice, .email_wrong_notice{
 	color: var(--main-color);
 	margin-bottom: 25px;
 	display: none;
 	text-align: left;
 	font-weight: 500;
 }
+
 .error{
 	display: none;
 	color: var(--main-color);

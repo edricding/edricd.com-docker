@@ -364,37 +364,60 @@
     },
 
     contactForm: function () {
-      $("#send_message").on("click", function () {
-        var form = $(".rewall_fn_contact .contact_form");
-        var name = $("#name").val();
-        var email = $("#email").val();
-        var message = $("#message").val();
-        var phone = $("#phone").val();
-        var spanSuccess = form.find(".success");
-        var success = spanSuccess.data("success");
-        var emailto = form.data("email");
+      function isValidEmail(email) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim());
+      }
 
-        spanSuccess.empty();
-        if (
-          name === "" ||
-          email === "" ||
-          message === "" ||
-          emailto === "" ||
-          phone === ""
-        ) {
-          $(".empty_notice").slideDown(500).delay(2000).slideUp(500);
-        } else {
+      $("#send_message")
+        .off("click")
+        .on("click", function () {
+          var form = $(".rewall_fn_contact .contact_form");
+          var name = $.trim($("#name").val());
+          var email = $.trim($("#email").val());
+          var message = $.trim($("#message").val());
+          var phone = $.trim($("#phone").val()); // optional
+          var spanSuccess = form.find(".success");
+          var success = spanSuccess.data("success");
+
+          // 清空后端返回提示
+          spanSuccess.empty();
+
+          // 先收起提示（避免叠加）
+          $(".empty_notice").stop(true, true).hide();
+          $(".email_wrong_notice").stop(true, true).hide();
+
+          // 必填校验：name/email/message
+          if (name === "" || email === "" || message === "") {
+            $(".empty_notice")
+              .stop(true, true)
+              .slideDown(500)
+              .delay(2000)
+              .slideUp(500);
+            return false;
+          }
+
+          // email 格式校验
+          if (!isValidEmail(email)) {
+            $(".email_wrong_notice")
+              .stop(true, true)
+              .slideDown(500)
+              .delay(2000)
+              .slideUp(500);
+            return false;
+          }
+
+          // 提交（不再传 emailto）
           $.post(
             "modal/contact.php",
             {
               ajax_name: name,
               ajax_email: email,
-              ajax_emailto: emailto,
               ajax_message: message,
               ajax_phone: phone,
             },
             function (data) {
               spanSuccess.append(data);
+
               if (spanSuccess.find(".contact_error").length) {
                 spanSuccess.slideDown(500).delay(2000).slideUp(500);
               } else {
@@ -403,14 +426,15 @@
                 );
                 spanSuccess.slideDown(500).delay(4000).slideUp(500);
               }
+
               if (data === "") {
                 form[0].reset();
               }
             },
           );
-        }
-        return false;
-      });
+
+          return false;
+        });
     },
 
     loadGalleryPhotos: function () {
