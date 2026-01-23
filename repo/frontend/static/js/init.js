@@ -233,32 +233,70 @@
       }).init();
     },
 
+    // magnific: function () {
+    //   $(".gallery_zoom").each(function () {
+    //     // the containers for all your galleries
+    //     var zoom = $(this);
+    //     // var galleryItems 	= Rewall.magnificItems(zoom);
+    //     // zoom.magnificPopup({
+    //     // 	gallery: {
+    //     // 	  enabled: true
+    //     // 	},
+    //     // 	removalDelay: 300,
+    //     // 	mainClass: 'mfp-fade',
+    //     // 	items: galleryItems,
+    //     // });
+
+    //     zoom.magnificPopup({
+    //       delegate: "a.zoom", // 关键：绑定到每一个缩略图链接
+    //       type: "image",
+    //       gallery: { enabled: true },
+    //       removalDelay: 300,
+    //       mainClass: "mfp-fade",
+    //       image: {
+    //         titleSrc: function (item) {
+    //           // 让标题继续用 data-title
+    //           return item.el.attr("data-title") || "";
+    //         },
+    //       },
+    //     });
+    //   });
+    // },
     magnific: function () {
       $(".gallery_zoom").each(function () {
-        // the containers for all your galleries
         var zoom = $(this);
-        // var galleryItems 	= Rewall.magnificItems(zoom);
-        // zoom.magnificPopup({
-        // 	gallery: {
-        // 	  enabled: true
-        // 	},
-        // 	removalDelay: 300,
-        // 	mainClass: 'mfp-fade',
-        // 	items: galleryItems,
-        // });
 
-        zoom.magnificPopup({
-          delegate: "a.zoom", // 关键：绑定到每一个缩略图链接
-          type: "image",
-          gallery: { enabled: true },
-          removalDelay: 300,
-          mainClass: "mfp-fade",
-          image: {
-            titleSrc: function (item) {
-              // 让标题继续用 data-title
-              return item.el.attr("data-title") || "";
+        // 生成去重后的 gallery items（按 src + title 去重）
+        var galleryItems = Rewall.magnificItems(zoom);
+
+        // 防止重复绑定
+        zoom.off("click.mfp").on("click.mfp", "a.zoom", function (e) {
+          e.preventDefault();
+
+          var src = $(this).attr("href");
+          var title = $(this).attr("data-title") || "";
+
+          // 在去重数组里找 index
+          var idx = galleryItems.findIndex(function (it) {
+            return it.src === src && (it.title || "") === title;
+          });
+
+          // 如果因为 title 不一致没找到，就只用 src 再找一次（更鲁棒）
+          if (idx < 0) {
+            idx = galleryItems.findIndex(function (it) {
+              return it.src === src;
+            });
+          }
+
+          $.magnificPopup.open(
+            {
+              items: galleryItems,
+              gallery: { enabled: true },
+              removalDelay: 300,
+              mainClass: "mfp-fade",
             },
-          },
+            idx >= 0 ? idx : 0,
+          );
         });
       });
     },
