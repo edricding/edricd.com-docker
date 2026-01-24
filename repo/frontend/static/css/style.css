@@ -16,16 +16,16 @@
 
 @font-face {
     font-family: 'SmileySans';
-    src: url('../fonts/SmileySans-Oblique.otf.woff2') format('woff2'),
-         url('../fonts/SmileySans-Oblique.ttf.woff2') format('woff2');
+    src: url('https://storage.googleapis.com/bucket-edricd/fonts/SmileySans-Oblique.otf.woff2') format('woff2'),
+         url('https://storage.googleapis.com/bucket-edricd/fonts/SmileySans-Oblique.ttf.woff2') format('woff2');
     font-weight: 400;   /* 正常体 */
     font-style: normal;
     font-display: swap; /* 强烈推荐加这行！文字先显示，字体加载完再替换 */
 }
 @font-face {
     font-family: 'AliShuHeiTi';
-    src: url('../fonts/AlimamaShuHeiTi-Bold.woff') format('woff'),
-         url('../fonts/AlimamaShuHeiTi-Bold.woff2') format('woff2');
+    src: url('https://storage.googleapis.com/bucket-edricd/fonts/AlimamaShuHeiTi-Bold.woff') format('woff'),
+         url('https://storage.googleapis.com/bucket-edricd/fonts/AlimamaShuHeiTi-Bold.woff2') format('woff2');
     font-weight: 400;   /* 正常体 */
     font-style: normal;
     font-display: swap; /* 强烈推荐加这行！文字先显示，字体加载完再替换 */
