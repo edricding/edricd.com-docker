@@ -64,6 +64,9 @@
       /* color sceme */
       Rewall.colorScheme();
 
+      /* language switcher */
+      Rewall.languageSwitcher();
+
       /* mobile menu opener with hamburger */
       Rewall.mobileMenuOpener();
     },
@@ -193,6 +196,57 @@
       $("body").on("click", function () {
         scheme.removeClass("opened");
       });
+    },
+
+    languageSwitcher: function () {
+      var buttons = $(".language_switcher_btn");
+      var storageKey = "edricd_lang";
+
+      function getSavedLang() {
+        try {
+          return localStorage.getItem(storageKey);
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function saveLang(lang) {
+        try {
+          localStorage.setItem(storageKey, lang);
+        } catch (e) {}
+      }
+
+      function applyLang(lang) {
+        $("[data-lang]").each(function () {
+          var el = $(this);
+          if (el.attr("data-lang") === lang) {
+            el.removeClass("lang-hidden");
+          } else {
+            el.addClass("lang-hidden");
+          }
+        });
+        buttons.removeClass("active");
+        $(".language_switcher_to_" + lang).addClass("active");
+      }
+
+      var initialLang = getSavedLang() || "EN";
+      applyLang(initialLang);
+
+      $(".language_switcher_to_EN")
+        .off("click")
+        .on("click", function (e) {
+          e.preventDefault();
+          saveLang("EN");
+          applyLang("EN");
+        });
+
+      $(".language_switcher_to_CN")
+        .off("click")
+        .on("click", function (e) {
+          e.preventDefault();
+          saveLang("CN");
+          applyLang("CN");
+        });
     },
 
     setTextColor: function (color, textColor) {
@@ -378,15 +432,17 @@
           var phone = $.trim($("#phone").val()); // optional
           var spanSuccess = form.find(".success");
           var success = spanSuccess.data("success");
+          var captchaToken = "";
 
-          // 清空后端返回提示
+          // ????????????
           spanSuccess.empty();
 
-          // 先收起提示（避免叠加）
+          // ?????????????????
           $(".empty_notice").stop(true, true).hide();
           $(".email_wrong_notice").stop(true, true).hide();
+          $(".captcha_notice").stop(true, true).hide();
 
-          // 必填校验：name/email/message
+          // ????????ame/email/message
           if (name === "" || email === "" || message === "") {
             $(".empty_notice")
               .stop(true, true)
@@ -396,7 +452,7 @@
             return false;
           }
 
-          // email 格式校验
+          // email ??????
           if (!isValidEmail(email)) {
             $(".email_wrong_notice")
               .stop(true, true)
@@ -406,32 +462,53 @@
             return false;
           }
 
-          // 提交（不再传 emailto）
-          $.post(
-            "modal/contact.php",
-            {
-              ajax_name: name,
-              ajax_email: email,
-              ajax_message: message,
-              ajax_phone: phone,
-            },
-            function (data) {
-              spanSuccess.append(data);
+          if (window.grecaptcha && typeof grecaptcha.getResponse === "function") {
+            captchaToken = grecaptcha.getResponse();
+          }
 
-              if (spanSuccess.find(".contact_error").length) {
-                spanSuccess.slideDown(500).delay(2000).slideUp(500);
-              } else {
-                spanSuccess.append(
-                  "<span class='contact_success'>" + success + "</span>",
-                );
-                spanSuccess.slideDown(500).delay(4000).slideUp(500);
-              }
+          if (!captchaToken) {
+            $(".captcha_notice")
+              .stop(true, true)
+              .slideDown(500)
+              .delay(2000)
+              .slideUp(500);
+            return false;
+          }
 
-              if (data === "") {
-                form[0].reset();
+          $.ajax({
+            url: "/api/contact",
+            method: "POST",
+            contentType: "application/json",
+            dataType: "json",
+            data: JSON.stringify({
+              name: name,
+              email: email,
+              message: message,
+              phone: phone,
+              captcha_token: captchaToken,
+            }),
+            success: function () {
+              spanSuccess.append(
+                "<span class='contact_success'>" + success + "</span>",
+              );
+              spanSuccess.slideDown(500).delay(4000).slideUp(500);
+              form[0].reset();
+              if (window.grecaptcha && typeof grecaptcha.reset === "function") {
+                grecaptcha.reset();
               }
             },
-          );
+            error: function (xhr) {
+              var msg = "Send failed. Please try again.";
+              if (xhr && xhr.responseJSON && xhr.responseJSON.detail) {
+                msg = xhr.responseJSON.detail;
+              }
+              spanSuccess.append("<span class='contact_error'>" + msg + "</span>");
+              spanSuccess.slideDown(500).delay(4000).slideUp(500);
+              if (window.grecaptcha && typeof grecaptcha.reset === "function") {
+                grecaptcha.reset();
+              }
+            },
+          });
 
           return false;
         });

@@ -1,11 +1,14 @@
+import json
 import os
 import smtplib
 from pathlib import Path
 from email.header import Header
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request as FastAPIRequest
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -29,6 +32,7 @@ class ContactPayload(BaseModel):
     email: str
     message: str
     phone: str | None = None
+    captcha_token: str
 
 EMAIL_TO = "edricding0108@gmail.com"  # 固定收件人
 
@@ -50,12 +54,37 @@ def render_contact_html(name: str, email: str, phone: str, message: str) -> str 
     except Exception:
         return None
 
+def verify_recaptcha(token: str, remoteip: str | None = None) -> None:
+    secret = os.getenv("RECAPTCHA_SECRET", "").strip()
+    if not secret:
+        raise HTTPException(status_code=500, detail="RECAPTCHA_SECRET not configured")
+    if not token:
+        raise HTTPException(status_code=400, detail="Captcha token missing")
+
+    payload = {"secret": secret, "response": token}
+    if remoteip:
+        payload["remoteip"] = remoteip
+
+    req = Request(
+        "https://www.google.com/recaptcha/api/siteverify",
+        data=urlencode(payload).encode("utf-8"),
+        method="POST",
+    )
+    try:
+        with urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"reCAPTCHA verify failed: {exc}")
+
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail="Captcha verification failed")
+
 @app.get("/api/health")
 def health():
     return {"ok": True}
 
 @app.post("/api/contact")
-def contact(payload: ContactPayload):
+def contact(payload: ContactPayload, request: FastAPIRequest):
     smtp_host = os.getenv("SMTP_HOST", "")
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
     smtp_user = os.getenv("SMTP_USER", "")
@@ -63,6 +92,9 @@ def contact(payload: ContactPayload):
 
     if not smtp_host or not smtp_user or not smtp_pass:
         raise HTTPException(status_code=500, detail="SMTP env not configured")
+
+    client_ip = request.client.host if request.client else None
+    verify_recaptcha(payload.captcha_token, client_ip)
 
     phone = payload.phone.strip() if payload.phone and payload.phone.strip() else "-"
 

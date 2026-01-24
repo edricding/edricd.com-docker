@@ -1698,12 +1698,20 @@ section{
 .rewall_fn_contact .contact_form a:focus{
 	outline: 1px dashed #444;
 }
-.empty_notice, .email_wrong_notice{
+.empty_notice, .email_wrong_notice, .captcha_notice{
 	color: var(--main-color);
 	margin-bottom: 25px;
 	display: none;
 	text-align: left;
 	font-weight: 500;
+}
+
+.rewall_fn_contact .g-recaptcha{
+	margin-top: 10px;
+}
+
+.rewall_fn_contact .g-recaptcha > div:nth-child(1){
+	margin: 0 auto;
 }
 
 .error{
@@ -1718,6 +1726,10 @@ section{
 	margin-bottom: 25px;
 	text-align: left;
 	font-weight: 500;
+}
+
+.lang-hidden{
+	display: none !important;
 }
 
 
@@ -2099,7 +2111,7 @@ section{
     top: 0;
     padding: 20px;
     background-color: #000;
-    width: 160px;
+    width: 220px;
     max-width: 100vw;
     transform: translateX(100%);
     transition: transform .5s ease;
