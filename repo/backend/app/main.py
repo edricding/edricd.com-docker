@@ -55,9 +55,9 @@ def render_contact_html(name: str, email: str, phone: str, message: str) -> str 
         return None
 
 def verify_recaptcha(token: str, remoteip: str | None = None) -> None:
-    secret = os.getenv("RECAPTCHA_SECRET", "").strip()
+    secret = os.getenv("RECAPTCHA_SECRET_KEY", "").strip()
     if not secret:
-        raise HTTPException(status_code=500, detail="RECAPTCHA_SECRET not configured")
+        raise HTTPException(status_code=500, detail="RECAPTCHA_SECRET_KEY not configured")
     if not token:
         raise HTTPException(status_code=400, detail="Captcha token missing")
 
@@ -82,6 +82,11 @@ def verify_recaptcha(token: str, remoteip: str | None = None) -> None:
 @app.get("/api/health")
 def health():
     return {"ok": True}
+
+@app.get("/api/recaptcha-sitekey")
+def recaptcha_sitekey():
+    site_key = os.getenv("RECAPTCHA_SITE_KEY", "").strip()
+    return {"site_key": site_key}
 
 @app.post("/api/contact")
 def contact(payload: ContactPayload, request: FastAPIRequest):

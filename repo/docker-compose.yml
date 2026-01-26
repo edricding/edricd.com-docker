@@ -22,6 +22,7 @@ services:
       - "443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./frontend:/usr/share/nginx/html:ro
     networks:
       - web
 

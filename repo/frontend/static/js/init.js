@@ -5,6 +5,13 @@
 (function ($) {
   "use strict";
 
+  var recaptchaState = {
+    siteKey: "",
+    apiReady: false,
+    widgetId: null,
+    waiting: false,
+  };
+
   var Rewall = {
     root: $(":root"),
 
@@ -42,6 +49,9 @@
 
       /* Load More photos in Gallery List */
       Rewall.loadGalleryPhotos();
+
+      /* reCAPTCHA site key + widget render */
+      Rewall.recaptchaInit();
 
       /* Contact Form */
       Rewall.contactForm();
@@ -463,7 +473,10 @@
           }
 
           if (window.grecaptcha && typeof grecaptcha.getResponse === "function") {
-            captchaToken = grecaptcha.getResponse();
+            captchaToken =
+              recaptchaState.widgetId !== null
+                ? grecaptcha.getResponse(recaptchaState.widgetId)
+                : grecaptcha.getResponse();
           }
 
           if (!captchaToken) {
@@ -493,9 +506,7 @@
               );
               spanSuccess.slideDown(500).delay(4000).slideUp(500);
               form[0].reset();
-              if (window.grecaptcha && typeof grecaptcha.reset === "function") {
-                grecaptcha.reset();
-              }
+              Rewall.resetRecaptcha();
             },
             error: function (xhr) {
               var msg = "Send failed. Please try again.";
@@ -504,14 +515,83 @@
               }
               spanSuccess.append("<span class='contact_error'>" + msg + "</span>");
               spanSuccess.slideDown(500).delay(4000).slideUp(500);
-              if (window.grecaptcha && typeof grecaptcha.reset === "function") {
-                grecaptcha.reset();
-              }
+              Rewall.resetRecaptcha();
             },
           });
 
           return false;
         });
+    },
+
+    recaptchaInit: function () {
+      var el = $("#recaptcha_widget");
+      if (!el.length) {
+        return;
+      }
+
+      var fallbackKey = $.trim(el.attr("data-sitekey") || "");
+      Rewall.waitForRecaptchaApi();
+
+      $.getJSON("/api/recaptcha-sitekey")
+        .done(function (data) {
+          if (data && typeof data.site_key === "string") {
+            recaptchaState.siteKey = $.trim(data.site_key);
+          }
+          if (!recaptchaState.siteKey) {
+            recaptchaState.siteKey = fallbackKey;
+          }
+          Rewall.renderRecaptchaIfReady();
+        })
+        .fail(function () {
+          recaptchaState.siteKey = fallbackKey;
+          Rewall.renderRecaptchaIfReady();
+        });
+    },
+
+    waitForRecaptchaApi: function () {
+      if (recaptchaState.apiReady || recaptchaState.waiting) {
+        return;
+      }
+
+      recaptchaState.waiting = true;
+      var attempts = 0;
+      var maxAttempts = 50;
+      var timer = setInterval(function () {
+        attempts += 1;
+        if (window.grecaptcha && typeof grecaptcha.render === "function") {
+          recaptchaState.apiReady = true;
+          clearInterval(timer);
+          Rewall.renderRecaptchaIfReady();
+        } else if (attempts >= maxAttempts) {
+          clearInterval(timer);
+        }
+      }, 200);
+    },
+
+    renderRecaptchaIfReady: function () {
+      if (!recaptchaState.apiReady || !recaptchaState.siteKey) {
+        return;
+      }
+      if (recaptchaState.widgetId !== null) {
+        return;
+      }
+      var el = document.getElementById("recaptcha_widget");
+      if (!el) {
+        return;
+      }
+      recaptchaState.widgetId = grecaptcha.render(el, {
+        sitekey: recaptchaState.siteKey,
+      });
+    },
+
+    resetRecaptcha: function () {
+      if (window.grecaptcha && typeof grecaptcha.reset === "function") {
+        if (recaptchaState.widgetId !== null) {
+          grecaptcha.reset(recaptchaState.widgetId);
+        } else {
+          grecaptcha.reset();
+        }
+      }
     },
 
     loadGalleryPhotos: function () {
