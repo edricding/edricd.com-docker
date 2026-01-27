@@ -58,8 +58,8 @@ body{
 }
 .fn__svg_2{
 	fill: currentcolor;
-	width: 30px;
-	height: 30px;
+	width: 25px;
+	height: 25px;
 }
 h1,h2,h3,h4,h5,h6{line-height: 1.2;font-weight: 600;font-family: 'Jost';color: #0e090d;}
 h1>a,h2>a,h3>a,h4>a,h5>a,h6>a{color: #0e090d;}
