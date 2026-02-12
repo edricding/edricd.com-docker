@@ -1,8 +1,10 @@
 ;(function (window) {
   "use strict";
 
-  var RECAPTCHA_SITE_KEY = "6LeLHmAsAAAAAIMDu4IcbDpVMrSn0QU4u0EyKHVr";
   var RECAPTCHA_TIMEOUT_MS = 15000;
+  var RECAPTCHA_SCRIPT_ID = "google-recaptcha-script";
+  var recaptchaSiteKey = "";
+  var recaptchaReadyPromise = null;
   var isRedirecting = false;
   var isSubmitting = false;
   var initialized = false;
@@ -11,15 +13,12 @@
     if (!value || typeof value !== "string") {
       return "";
     }
-
     if (value.indexOf("/") !== 0 || value.indexOf("//") === 0) {
       return "";
     }
-
     if (value === "/login" || value.indexOf("/login?") === 0) {
       return "";
     }
-
     return value;
   }
 
@@ -44,13 +43,11 @@
     if (!el) {
       return;
     }
-
     if (!msg) {
       el.style.display = "none";
       el.textContent = "";
       return;
     }
-
     el.textContent = msg;
     el.style.display = "block";
   }
@@ -67,7 +64,6 @@
       return true;
     }
 
-    // If login HTML is served on a non-login path, normalize URL first.
     if (document.getElementById("login-submit-btn")) {
       var currentPath =
         pathname + (window.location.search || "") + (window.location.hash || "");
@@ -82,9 +78,8 @@
     if (isRedirecting) {
       return;
     }
-
     isRedirecting = true;
-    var safePath = sanitizeNextPath(targetPath) || "/";
+    var safePath = sanitizeNextPath(targetPath) || "/index";
     window.location.replace(safePath);
   }
 
@@ -106,7 +101,7 @@
     var maxTry = typeof maxAttempts === "number" ? maxAttempts : 8;
     var waitMs = typeof delayMs === "number" ? delayMs : 250;
     var attempt = 0;
-    var safePath = sanitizeNextPath(targetPath) || "/";
+    var safePath = sanitizeNextPath(targetPath) || "/index";
 
     function loop() {
       return checkSessionReadyOnce().then(function (ready) {
@@ -114,12 +109,10 @@
           redirectToTargetOnce(safePath);
           return true;
         }
-
         attempt += 1;
         if (attempt >= maxTry) {
           return false;
         }
-
         return delay(waitMs).then(loop);
       });
     }
@@ -134,53 +127,110 @@
     context.usernameEl.disabled = submitting;
     context.passwordEl.disabled = submitting;
     context.btn.textContent = submitting ? "Please wait..." : context.btnDefaultText;
-
     if (submitting && message) {
       showMsg(context.generalMsgEl, message);
     }
   }
 
-  function executeRecaptchaToken() {
+  function loadRecaptchaScript(siteKey) {
+    if (window.grecaptcha && typeof window.grecaptcha.execute === "function") {
+      return Promise.resolve();
+    }
+
     return new Promise(function (resolve, reject) {
-      if (
-        !window.grecaptcha ||
-        typeof window.grecaptcha.ready !== "function" ||
-        typeof window.grecaptcha.execute !== "function"
-      ) {
-        reject(new Error("reCAPTCHA not ready"));
+      var existing = document.getElementById(RECAPTCHA_SCRIPT_ID);
+      if (existing) {
+        existing.addEventListener("load", function () {
+          resolve();
+        });
+        existing.addEventListener("error", function () {
+          reject(new Error("Failed to load reCAPTCHA script"));
+        });
         return;
       }
 
-      var finished = false;
-      var timeoutId = window.setTimeout(function () {
-        if (finished) {
+      var script = document.createElement("script");
+      script.id = RECAPTCHA_SCRIPT_ID;
+      script.src = "https://www.google.com/recaptcha/api.js?render=" + encodeURIComponent(siteKey);
+      script.async = true;
+      script.defer = true;
+      script.onload = function () {
+        resolve();
+      };
+      script.onerror = function () {
+        reject(new Error("Failed to load reCAPTCHA script"));
+      };
+      document.head.appendChild(script);
+    });
+  }
+
+  function ensureRecaptchaReady() {
+    if (recaptchaReadyPromise) {
+      return recaptchaReadyPromise;
+    }
+
+    recaptchaReadyPromise = fetch("/api/recaptcha-sitekey", {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    })
+      .then(function (res) {
+        return res
+          .json()
+          .catch(function () {
+            return {};
+          });
+      })
+      .then(function (data) {
+        var key = (data && data.site_key ? data.site_key : "").trim();
+        if (!key) {
+          throw new Error("reCAPTCHA site key not configured");
+        }
+        recaptchaSiteKey = key;
+        return loadRecaptchaScript(key);
+      });
+
+    return recaptchaReadyPromise;
+  }
+
+  function executeRecaptchaToken() {
+    return ensureRecaptchaReady().then(function () {
+      return new Promise(function (resolve, reject) {
+        if (
+          !window.grecaptcha ||
+          typeof window.grecaptcha.ready !== "function" ||
+          typeof window.grecaptcha.execute !== "function"
+        ) {
+          reject(new Error("reCAPTCHA not ready"));
           return;
         }
-        finished = true;
-        reject(new Error("reCAPTCHA timeout"));
-      }, RECAPTCHA_TIMEOUT_MS);
 
-      function once(cb) {
-        return function (value) {
+        var finished = false;
+        var timeoutId = window.setTimeout(function () {
           if (finished) {
             return;
           }
           finished = true;
-          window.clearTimeout(timeoutId);
-          cb(value);
-        };
-      }
+          reject(new Error("reCAPTCHA timeout"));
+        }, RECAPTCHA_TIMEOUT_MS);
 
-      window.grecaptcha.ready(function () {
-        if (typeof window.grecaptcha.execute !== "function") {
-          once(reject)(new Error("reCAPTCHA not ready"));
-          return;
+        function once(cb) {
+          return function (value) {
+            if (finished) {
+              return;
+            }
+            finished = true;
+            window.clearTimeout(timeoutId);
+            cb(value);
+          };
         }
 
-        window.grecaptcha
-          .execute(RECAPTCHA_SITE_KEY, { action: "login" })
-          .then(once(resolve))
-          .catch(once(reject));
+        window.grecaptcha.ready(function () {
+          window.grecaptcha
+            .execute(recaptchaSiteKey, { action: "login" })
+            .then(once(resolve))
+            .catch(once(reject));
+        });
       });
     });
   }
@@ -231,16 +281,10 @@
         return res
           .json()
           .catch(function () {
-            return null;
-          })
-          .then(function (data) {
-            return {
-              data: data,
-            };
+            return {};
           });
       })
-      .then(function (result) {
-        var data = result.data;
+      .then(function (data) {
         if (data && data.success) {
           showMsg(context.generalMsgEl, "Login succeeded. Redirecting...");
           return redirectToTargetWhenReady(20, 250, context.targetPath).then(function (redirected) {
@@ -249,15 +293,12 @@
             }
           });
         }
-
-        showMsg(context.generalMsgEl, (data && data.message) || "Login failed");
+        showMsg(context.generalMsgEl, (data && (data.message || data.detail)) || "Login failed");
       })
       .catch(function (err) {
         var message = "Login failed";
-        if (err && err.message === "reCAPTCHA not ready") {
-          message = "reCAPTCHA not ready.";
-        } else if (err && err.message === "reCAPTCHA timeout") {
-          message = "reCAPTCHA timeout. Please retry.";
+        if (err && err.message) {
+          message = err.message;
         }
         console.error("Login failed", err);
         showMsg(context.generalMsgEl, message);
@@ -298,13 +339,17 @@
       passMsgEl: passMsgEl,
       generalMsgEl: generalMsgEl,
       btnDefaultText: btn.textContent || "Login",
-      targetPath: getTargetPathFromQuery() || "/",
+      targetPath: getTargetPathFromQuery() || "/index",
     };
 
     checkSessionReadyOnce().then(function (ready) {
       if (ready) {
         redirectToTargetOnce(context.targetPath);
       }
+    });
+
+    ensureRecaptchaReady().catch(function (err) {
+      showMsg(context.generalMsgEl, err && err.message ? err.message : "reCAPTCHA init failed");
     });
 
     btn.addEventListener("click", function (e) {
@@ -315,7 +360,6 @@
     });
 
     if (loginForm) {
-      // Capture submit first to prevent any other global submit handler from reloading the page.
       loginForm.addEventListener(
         "submit",
         function (e) {

@@ -14,6 +14,7 @@
 
 <!-- Theme Config Js -->
 <script src="js/config.js"></script>
+<script src="js/checkLoginStatus.js"></script>
 
 <!-- Vendor css -->
 <link href="css/vendor.min.css" rel="stylesheet" type="text/css" />
@@ -1003,24 +1004,6 @@
   <script src="js/pages/dashboard-sales.js"></script>
 
   <script src="js/BackendHttpRequest.js"></script>
-  <script>
-    (function () {
-      var logoutBtn = document.getElementById("logout-btn");
-      if (!logoutBtn) {
-        return;
-      }
-      logoutBtn.addEventListener("click", function (e) {
-        e.preventDefault();
-        fetch("/api/AuthLogout", {
-          method: "POST",
-          credentials: "include",
-        })
-          .finally(function () {
-            window.location.href = "/login";
-          });
-      });
-    })();
-  </script>
 </body>
 
 </html>

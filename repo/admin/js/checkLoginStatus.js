@@ -1,20 +1,37 @@
-window.addEventListener("DOMContentLoaded", function () {
-  fetch("/api/session/status", {
-    method: "GET",
-    credentials: "include",
-    cache: "no-store",
-  })
-    .then((res) => res.json())
-    .then((data) => {
-      if (!data.loggedIn) {
-        window.location.href = "/login";
-        return;
-      }
+(function () {
+  var root = document.documentElement;
+  if (root) {
+    root.style.visibility = "hidden";
+  }
 
-      document.documentElement.style.visibility = "visible";
+  function buildLoginRedirectUrl() {
+    var nextPath = (window.location.pathname || "/") + (window.location.search || "");
+    if (!nextPath || nextPath === "/") {
+      return "/login";
+    }
+    return "/login?next=" + encodeURIComponent(nextPath);
+  }
+
+  window.addEventListener("DOMContentLoaded", function () {
+    fetch("/api/session/status", {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
     })
-    .catch((err) => {
-      console.error("Session check failed", err);
-      window.location.href = "/login";
-    });
-});
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (!data || !data.loggedIn) {
+          window.location.replace(buildLoginRedirectUrl());
+          return;
+        }
+        if (root) {
+          root.style.visibility = "visible";
+        }
+      })
+      .catch(function () {
+        window.location.replace(buildLoginRedirectUrl());
+      });
+  });
+})();
