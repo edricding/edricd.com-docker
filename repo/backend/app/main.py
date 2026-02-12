@@ -381,6 +381,52 @@ def session_require(request: FastAPIRequest):
     return response
 
 
+@app.get("/api/users")
+def list_users(request: FastAPIRequest):
+    session_payload = get_session_payload(request)
+    if not session_payload:
+        return JSONResponse(
+            {"success": False, "message": "unauthorized"},
+            status_code=401,
+        )
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT `id`, `username`, `last_login_time`
+                    FROM `user`
+                    ORDER BY `id` DESC
+                    """
+                )
+                rows = cursor.fetchall()
+    except Exception as exc:
+        return {"success": False, "message": f"query users failed: {exc}"}
+
+    users: list[dict] = []
+    for row in rows:
+        last_login_time = row.get("last_login_time")
+        users.append(
+            {
+                "id": row.get("id"),
+                "username": row.get("username"),
+                "last_login_time": (
+                    last_login_time.strftime("%Y-%m-%d %H:%M:%S")
+                    if last_login_time
+                    else None
+                ),
+            }
+        )
+
+    return {
+        "success": True,
+        "message": "ok",
+        "columns": ["id", "username", "last_login_time"],
+        "data": users,
+    }
+
+
 @app.post("/api/users/create")
 def create_user(payload: CreateUserPayload):
     username = payload.username.strip()

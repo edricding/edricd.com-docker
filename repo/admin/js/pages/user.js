@@ -27,7 +27,9 @@ function fetchUsers() {
         return;
       }
 
-      renderUsersTable(Array.isArray(data.data) ? data.data : []);
+      const users = Array.isArray(data.data) ? data.data : [];
+      const columns = Array.isArray(data.columns) ? data.columns : [];
+      renderUsersTable(users, columns);
     })
     .catch((err) => {
       console.error("Failed to load users", err);
@@ -35,63 +37,45 @@ function fetchUsers() {
     });
 }
 
-function renderUsersTable(users) {
+function renderUsersTable(users, columns) {
   const container = document.getElementById("table-gridjs");
   if (!container) {
     return;
   }
 
+  const columnKeys = Array.isArray(columns) && columns.length > 0
+    ? columns
+    : (users.length > 0 ? Object.keys(users[0]) : []);
+
   const table = document.createElement("table");
   table.className = "table table-sm mb-0";
 
+  if (columnKeys.length === 0) {
+    container.innerHTML = '<div class="text-muted">No users found.</div>';
+    return;
+  }
+
   const thead = document.createElement("thead");
-  thead.innerHTML = `
-    <tr>
-      <th style="width: 80px;">ID</th>
-      <th>Username</th>
-      <th style="width: 140px;">Role</th>
-      <th style="width: 140px;">Action</th>
-    </tr>
-  `;
+  const headerRow = document.createElement("tr");
+  columnKeys.forEach((key) => {
+    const th = document.createElement("th");
+    th.textContent = formatColumnLabel(key);
+    headerRow.appendChild(th);
+  });
+  thead.appendChild(headerRow);
 
   const tbody = document.createElement("tbody");
 
   if (users.length === 0) {
     const emptyRow = document.createElement("tr");
-    emptyRow.innerHTML = `
-      <td colspan="4" class="text-muted">No users found.</td>
-    `;
+    emptyRow.innerHTML = `<td colspan="${columnKeys.length}" class="text-muted">No users found.</td>`;
     tbody.appendChild(emptyRow);
   } else {
     users.forEach((user) => {
-      const roleValue = (user.role || "").toLowerCase();
-      const isSuperAdmin = roleValue === "superadmin";
-      const roleBadge = renderRoleBadge(roleValue);
       const row = document.createElement("tr");
-      row.innerHTML = `
-        <td>${user.id}</td>
-        <td>${escapeHtml(user.username || "")}</td>
-        <td>${roleBadge}</td>
-        <td>
-
-        <a href="javascript:void(0);" 
-                 class="btn btn-soft-warning btn-icon btn-sm rounded-circle reset-password-btn me-1" data-bs-toggle="modal"
-            data-bs-target="#ResetPasswordModal"
-                 data-id="${user.id}">
-                <i class="ti ti-key"></i>
-              </a>
-
-              ${
-                isSuperAdmin
-                  ? ""
-                  : `<a href="javascript:void(0);" 
-                 class="btn btn-soft-danger btn-icon btn-sm rounded-circle delete-user-btn" 
-                 data-id="${user.id}">
-                <i class="ti ti-trash"></i>
-              </a>`
-              }
-        </td>
-      `;
+      row.innerHTML = columnKeys
+        .map((key) => `<td>${escapeHtml(formatCellValue(user ? user[key] : null))}</td>`)
+        .join("");
       tbody.appendChild(row);
     });
   }
@@ -113,6 +97,21 @@ function renderError(message) {
   `;
 }
 
+function formatColumnLabel(key) {
+  return String(key || "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, function (ch) {
+      return ch.toUpperCase();
+    });
+}
+
+function formatCellValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+  return String(value);
+}
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -120,20 +119,6 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function renderRoleBadge(roleValue) {
-  const label = roleValue ? roleValue.toUpperCase() : "UNKNOWN";
-  if (roleValue === "superadmin") {
-    return `<span class="badge bg-danger">${label}</span>`;
-  }
-  if (roleValue === "admin") {
-    return `<span class="badge bg-warning">${label}</span>`;
-  }
-  if (roleValue === "user") {
-    return `<span class="badge bg-success">${label}</span>`;
-  }
-  return `<span class="badge bg-secondary">${label}</span>`;
 }
 
 function bindResetPasswordActions() {
