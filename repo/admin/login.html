@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <title>Login | INFJEW - Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- App favicon -->
+  <link rel="shortcut icon" href="images/favico.ico" />
+
+  <!-- Theme Config Js -->
+  <script src="js/config.js"></script>
+
+  <!-- Vendor css -->
+  <link href="css/vendor.min.css" rel="stylesheet" type="text/css" />
+
+  <!-- App css -->
+  <link href="css/app.css" rel="stylesheet" type="text/css" id="app-style" />
+
+  <!-- Icons css -->
+  <link href="css/icons.min.css" rel="stylesheet" type="text/css" />
+</head>
+
+<body>
+  <div class="auth-bg d-flex min-vh-100 justify-content-center align-items-center">
+    <div class="row g-0 justify-content-center w-100 m-xxl-5 px-xxl-4 m-3">
+      <div class="col-xl-4 col-lg-5 col-md-6">
+        <div class="card overflow-hidden text-center h-100 p-xxl-4 p-3 mb-0">
+          <a href="#" class="auth-brand mb-3">
+            <img src="https://storage.googleapis.com/bucket-edricd/images/logo/logo.gif"
+              alt="dark logo" class="logo-dark col-lg-6 col-md-6 col-sm-12 col-xs-12" />
+          </a>
+
+          <h4 class="fw-semibold mb-2">Login your account</h4>
+
+          <p class="text-muted mb-4">
+            Enter your username and password to access admin dashboard.
+          </p>
+
+          <form id="login-form" class="text-start mb-3 needs-validation" novalidate action="javascript:void(0);">
+            <div class="mb-3">
+              <label class="form-label" for="login-username">Username</label>
+              <input type="text" id="login-username" name="login-username" class="form-control"
+                placeholder="Enter your username" required />
+              <div id="login-username-msg" class="mt-1" style="color: #f36b21; font-size: 12px; display: none"></div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label" for="login-password">Password</label>
+              <input type="password" id="login-password" class="form-control" placeholder="Enter your password"
+                required />
+              <div id="login-password-msg" class="mt-1" style="color: #f36b21; font-size: 12px; display: none"></div>
+            </div>
+
+            <div class="d-grid">
+              <button class="btn btn-primary" id="login-submit-btn" type="button">
+                Login
+              </button>
+            </div>
+          </form>
+
+          <div id="login-general-msg" class="mb-2" style="color: #f36b21; font-size: 12px; display: none"></div>
+
+          <p class="mt-auto mb-0">
+            2025 - <span id="login-current-year">2025</span> @ EDRICD.COM
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+    <!-- Vendor js -->
+    <script src="js/vendor.min.js"></script>
+
+    <!-- App js -->
+    <script src="js/app.js"></script>
+
+    <!-- <script src="js/pages/login.js"></script> -->
+</body>
+
+</html>
