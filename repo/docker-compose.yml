@@ -8,7 +8,7 @@ services:
         condition: service_healthy
     environment:
       # CORS origins for http/https
-      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://edricd.com,http://www.edricd.com,https://edricd.com,https://www.edricd.com}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-http://edricd.com,http://www.edricd.com,https://edricd.com,https://www.edricd.com,http://dashboard.edricd.com,https://dashboard.edricd.com}
       # SMTP (contact form)
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -63,6 +63,7 @@ services:
       - ./nginx/certbot/www:/var/www/certbot:ro
       - ./nginx/certbot/conf:/etc/letsencrypt:ro
       - ./frontend:/usr/share/nginx/html:ro
+      - ./admin:/usr/share/nginx/admin:ro
     networks:
       - web
     command: /bin/sh -c "while :; do sleep 6h; nginx -s reload; done & nginx -g 'daemon off;'"
