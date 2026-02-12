@@ -9,9 +9,12 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from fastapi import FastAPI, HTTPException, Request as FastAPIRequest
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+import bcrypt
+import pymysql
+from pymysql.err import IntegrityError
 
 from app.core.config import settings
 
@@ -33,6 +36,12 @@ class ContactPayload(BaseModel):
     message: str
     phone: str | None = None
     captcha_token: str
+
+
+class CreateUserPayload(BaseModel):
+    username: str = Field(min_length=1, max_length=50)
+    password: str = Field(min_length=1, max_length=255)
+    role: str | None = None
 
 EMAIL_TO = "edricding0108@gmail.com"  # 固定收件人
 
@@ -79,6 +88,32 @@ def verify_recaptcha(token: str, remoteip: str | None = None) -> None:
     if not result.get("success"):
         raise HTTPException(status_code=400, detail="Captcha verification failed")
 
+
+def get_db_connection():
+    db_host = os.getenv("DB_HOST", "mysql")
+    db_port = int(os.getenv("DB_PORT", "3306"))
+    db_name = os.getenv("DB_NAME", "edricd")
+    db_user = os.getenv("DB_USER", "edricd")
+    db_password = os.getenv("DB_PASSWORD", "")
+
+    return pymysql.connect(
+        host=db_host,
+        port=db_port,
+        user=db_user,
+        password=db_password,
+        database=db_name,
+        charset="utf8mb4",
+        cursorclass=pymysql.cursors.DictCursor,
+        autocommit=True,
+    )
+
+
+def hash_password(plain_password: str) -> str:
+    return bcrypt.hashpw(
+        plain_password.encode("utf-8"),
+        bcrypt.gensalt(),
+    ).decode("utf-8")
+
 @app.get("/api/health")
 def health():
     return {"ok": True}
@@ -87,6 +122,40 @@ def health():
 def recaptcha_sitekey():
     site_key = os.getenv("RECAPTCHA_SITE_KEY", "").strip()
     return {"site_key": site_key}
+
+
+@app.post("/api/users/create")
+def create_user(payload: CreateUserPayload):
+    username = payload.username.strip()
+    plain_password = payload.password
+
+    if not username:
+        return {"success": False, "message": "username is required"}
+    if not plain_password or not plain_password.strip():
+        return {"success": False, "message": "password is required"}
+
+    hashed_password = hash_password(plain_password)
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO `user` (`username`, `password`, `last_login_time`)
+                    VALUES (%s, %s, NULL)
+                    """,
+                    (username, hashed_password),
+                )
+                new_id = cursor.lastrowid
+
+        return {"success": True, "message": "user created", "data": {"id": new_id}}
+    except IntegrityError as exc:
+        # 1062 = duplicate entry for unique key
+        if exc.args and len(exc.args) > 0 and exc.args[0] == 1062:
+            return {"success": False, "message": "username already exists"}
+        return {"success": False, "message": f"database integrity error: {exc}"}
+    except Exception as exc:
+        return {"success": False, "message": f"create user failed: {exc}"}
 
 @app.post("/api/contact")
 def contact(payload: ContactPayload, request: FastAPIRequest):
