@@ -17,6 +17,7 @@ services:
       # reCAPTCHA
       RECAPTCHA_SITE_KEY: ${RECAPTCHA_SITE_KEY:-}
       RECAPTCHA_SECRET_KEY: ${RECAPTCHA_SECRET_KEY:-}
+      LOGIN_RECAPTCHA_REQUIRED: ${LOGIN_RECAPTCHA_REQUIRED:-0}
       # DB settings reserved for backend integration
       DB_HOST: ${DB_HOST:-mysql}
       DB_PORT: ${DB_PORT:-3306}

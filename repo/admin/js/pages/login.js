@@ -8,6 +8,7 @@
     "https://www.recaptcha.net/recaptcha/api.js?render=",
   ];
   var recaptchaSiteKey = "";
+  var loginRecaptchaRequired = false;
   var recaptchaReadyPromise = null;
   var isRedirecting = false;
   var isSubmitting = false;
@@ -214,15 +215,24 @@
           });
       })
       .then(function (data) {
+        loginRecaptchaRequired = !!(data && data.login_required);
         var key = (data && data.site_key ? data.site_key : "").trim();
         if (!key) {
-          throw new Error("reCAPTCHA site key not configured");
+          if (loginRecaptchaRequired) {
+            throw new Error("reCAPTCHA site key not configured");
+          }
+          recaptchaSiteKey = "";
+          return;
         }
         recaptchaSiteKey = key;
         return loadRecaptchaScript(key);
       })
       .catch(function (err) {
         recaptchaReadyPromise = null;
+        if (!loginRecaptchaRequired) {
+          console.warn("reCAPTCHA unavailable, continuing without captcha", err);
+          return;
+        }
         throw err;
       });
 
@@ -230,45 +240,58 @@
   }
 
   function executeRecaptchaToken() {
-    return ensureRecaptchaReady().then(function () {
-      return new Promise(function (resolve, reject) {
-        if (
-          !window.grecaptcha ||
-          typeof window.grecaptcha.ready !== "function" ||
-          typeof window.grecaptcha.execute !== "function"
-        ) {
-          reject(new Error("reCAPTCHA not ready"));
-          return;
+    return ensureRecaptchaReady()
+      .then(function () {
+        if (!loginRecaptchaRequired) {
+          if (!window.grecaptcha || !recaptchaSiteKey) {
+            return "";
+          }
         }
-
-        var finished = false;
-        var timeoutId = window.setTimeout(function () {
-          if (finished) {
+        return new Promise(function (resolve, reject) {
+          if (
+            !window.grecaptcha ||
+            typeof window.grecaptcha.ready !== "function" ||
+            typeof window.grecaptcha.execute !== "function"
+          ) {
+            reject(new Error("reCAPTCHA not ready"));
             return;
           }
-          finished = true;
-          reject(new Error("reCAPTCHA timeout"));
-        }, RECAPTCHA_TIMEOUT_MS);
 
-        function once(cb) {
-          return function (value) {
+          var finished = false;
+          var timeoutId = window.setTimeout(function () {
             if (finished) {
               return;
             }
             finished = true;
-            window.clearTimeout(timeoutId);
-            cb(value);
-          };
-        }
+            reject(new Error("reCAPTCHA timeout"));
+          }, RECAPTCHA_TIMEOUT_MS);
 
-        window.grecaptcha.ready(function () {
-          window.grecaptcha
-            .execute(recaptchaSiteKey, { action: "login" })
-            .then(once(resolve))
-            .catch(once(reject));
+          function once(cb) {
+            return function (value) {
+              if (finished) {
+                return;
+              }
+              finished = true;
+              window.clearTimeout(timeoutId);
+              cb(value);
+            };
+          }
+
+          window.grecaptcha.ready(function () {
+            window.grecaptcha
+              .execute(recaptchaSiteKey, { action: "login" })
+              .then(once(resolve))
+              .catch(once(reject));
+          });
         });
+      })
+      .catch(function (err) {
+        if (!loginRecaptchaRequired) {
+          console.warn("reCAPTCHA execution failed, continuing without captcha", err);
+          return "";
+        }
+        throw err;
       });
-    });
   }
 
   function submitLogin(context) {
@@ -296,7 +319,7 @@
       return;
     }
 
-    setSubmitting(context, true, "Verifying reCAPTCHA...");
+    setSubmitting(context, true, loginRecaptchaRequired ? "Verifying reCAPTCHA..." : "Signing in...");
 
     executeRecaptchaToken()
       .then(function (token) {
@@ -385,6 +408,9 @@
     });
 
     ensureRecaptchaReady().catch(function (err) {
+      if (!loginRecaptchaRequired) {
+        return;
+      }
       showMsg(context.generalMsgEl, err && err.message ? err.message : "reCAPTCHA init failed");
     });
 

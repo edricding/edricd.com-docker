@@ -53,7 +53,7 @@ class CreateUserPayload(BaseModel):
 class LoginPayload(BaseModel):
     username: str = Field(min_length=1, max_length=50)
     password: str = Field(min_length=1, max_length=255)
-    recaptchaToken: str = Field(min_length=1)
+    recaptchaToken: str | None = None
 
 
 EMAIL_TO = "edricding0108@gmail.com"
@@ -112,6 +112,18 @@ def verify_recaptcha(token: str, remoteip: str | None = None) -> None:
 
     if not result.get("success"):
         raise HTTPException(status_code=400, detail="Captcha verification failed")
+
+
+def _bool_env(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def is_login_recaptcha_required() -> bool:
+    # Keep login available in environments where reCAPTCHA domains are blocked.
+    return _bool_env("LOGIN_RECAPTCHA_REQUIRED", False)
 
 
 def get_db_connection():
@@ -257,14 +269,18 @@ def health():
 @app.get("/api/recaptcha-sitekey")
 def recaptcha_sitekey():
     site_key = os.getenv("RECAPTCHA_SITE_KEY", "").strip()
-    return {"site_key": site_key}
+    return {
+        "site_key": site_key,
+        "login_required": is_login_recaptcha_required(),
+    }
 
 
 @app.post("/api/AuthLogin")
 def auth_login(payload: LoginPayload, request: FastAPIRequest):
     username = payload.username.strip()
     plain_password = payload.password
-    recaptcha_token = payload.recaptchaToken
+    recaptcha_token = (payload.recaptchaToken or "").strip()
+    recaptcha_required = is_login_recaptcha_required()
 
     if not username:
         return {"success": False, "message": "username is required"}
@@ -272,10 +288,15 @@ def auth_login(payload: LoginPayload, request: FastAPIRequest):
         return {"success": False, "message": "password is required"}
 
     client_ip = request.client.host if request.client else None
-    try:
-        verify_recaptcha(recaptcha_token, client_ip)
-    except HTTPException as exc:
-        return {"success": False, "message": str(exc.detail)}
+    if recaptcha_required and not recaptcha_token:
+        return {"success": False, "message": "Captcha token missing"}
+
+    if recaptcha_token:
+        try:
+            verify_recaptcha(recaptcha_token, client_ip)
+        except HTTPException as exc:
+            if recaptcha_required:
+                return {"success": False, "message": str(exc.detail)}
 
     try:
         with get_db_connection() as conn:

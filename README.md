@@ -44,6 +44,7 @@ SMTP_PASS=your_email_password
 
 RECAPTCHA_SITE_KEY=your_recaptcha_site_key
 RECAPTCHA_SECRET_KEY=your_recaptcha_secret_key
+LOGIN_RECAPTCHA_REQUIRED=0
 ```
 
 ## 本地或服务器启动（HTTP）
