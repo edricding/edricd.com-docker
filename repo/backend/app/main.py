@@ -75,6 +75,20 @@ class ReminderSlotDeletePayload(BaseModel):
     id: int = Field(ge=1)
 
 
+class ReminderPresetSavePayload(BaseModel):
+    id: int | None = Field(default=None, ge=1)
+    name: str = Field(min_length=1, max_length=120)
+    duration_min: int = Field(ge=1, le=1439)
+    audio_id: int | None = Field(default=None, ge=1)
+    color: str | None = Field(default=None, max_length=20)
+    is_enabled: bool = True
+    sort_order: int | None = Field(default=None, ge=0, le=65535)
+
+
+class ReminderPresetDeletePayload(BaseModel):
+    id: int = Field(ge=1)
+
+
 EMAIL_TO = "edricding0108@gmail.com"
 SESSION_COOKIE_NAME = "edricd_session"
 SESSION_TTL_SECONDS = 30 * 60
@@ -349,17 +363,19 @@ def reminder_slot_select_sql() -> str:
     """
 
 
-def reminder_slot_row_to_dict(row: dict) -> dict:
-    audio = None
-    if row.get("audio_lib_id") is not None:
-        audio = {
-            "id": int(row["audio_lib_id"]),
-            "name": row.get("audio_name"),
-            "gcs_url": row.get("audio_url"),
-            "mime_type": row.get("audio_mime_type"),
-            "duration_seconds": row.get("audio_duration_seconds"),
-        }
+def reminder_audio_from_joined_row(row: dict) -> dict | None:
+    if row.get("audio_lib_id") is None:
+        return None
+    return {
+        "id": int(row["audio_lib_id"]),
+        "name": row.get("audio_name"),
+        "gcs_url": row.get("audio_url"),
+        "mime_type": row.get("audio_mime_type"),
+        "duration_seconds": row.get("audio_duration_seconds"),
+    }
 
+
+def reminder_slot_row_to_dict(row: dict) -> dict:
     return {
         "id": int(row["id"]),
         "weekday": int(row["weekday"]),
@@ -371,8 +387,95 @@ def reminder_slot_row_to_dict(row: dict) -> dict:
         "color": row.get("color"),
         "is_enabled": bool(row.get("is_enabled")),
         "sort_order": int(row.get("sort_order") or 0),
-        "audio": audio,
+        "audio": reminder_audio_from_joined_row(row),
     }
+
+
+def reminder_preset_select_sql() -> str:
+    return """
+        SELECT
+            p.`id`,
+            p.`name`,
+            p.`duration_min`,
+            p.`audio_id`,
+            p.`color`,
+            p.`is_enabled`,
+            p.`sort_order`,
+            a.`id` AS `audio_lib_id`,
+            a.`name` AS `audio_name`,
+            a.`gcs_url` AS `audio_url`,
+            a.`mime_type` AS `audio_mime_type`,
+            a.`duration_seconds` AS `audio_duration_seconds`
+        FROM `reminder_preset` p
+        LEFT JOIN `reminder_audio_library` a ON a.`id` = p.`audio_id`
+    """
+
+
+def reminder_preset_row_to_dict(row: dict) -> dict:
+    return {
+        "id": int(row["id"]),
+        "name": row.get("name") or "",
+        "duration_min": int(row.get("duration_min") or 0),
+        "audio_id": row.get("audio_id"),
+        "color": row.get("color"),
+        "is_enabled": bool(row.get("is_enabled")),
+        "sort_order": int(row.get("sort_order") or 0),
+        "audio": reminder_audio_from_joined_row(row),
+    }
+
+
+def fetch_reminder_preset_by_id(cursor, preset_id: int) -> dict | None:
+    cursor.execute(
+        reminder_preset_select_sql()
+        + """
+          WHERE p.`id` = %s
+          LIMIT 1
+        """,
+        (preset_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+    return reminder_preset_row_to_dict(row)
+
+
+def table_exists(cursor, table_name: str) -> bool:
+    cursor.execute(
+        """
+        SHOW TABLES LIKE %s
+        """,
+        (table_name,),
+    )
+    return cursor.fetchone() is not None
+
+
+def build_fallback_presets_from_slots(slot_rows: list[dict]) -> list[dict]:
+    presets = []
+    for row in slot_rows:
+        start_min = int(row.get("start_min") or 0)
+        end_min = int(row.get("end_min") or 0)
+        duration_min = end_min - start_min
+        if duration_min <= 0:
+            continue
+        if not bool(row.get("is_enabled")):
+            continue
+
+        slot_id = int(row["id"])
+        presets.append(
+            {
+                "id": f"slot-{slot_id}",
+                "name": row.get("title") or "",
+                "duration_min": duration_min,
+                "audio_id": row.get("audio_id"),
+                "color": row.get("color"),
+                "is_enabled": True,
+                "sort_order": int(row.get("sort_order") or start_min),
+                "audio": reminder_audio_from_joined_row(row),
+                "source_slot_id": slot_id,
+                "is_fallback": True,
+            }
+        )
+    return presets
 
 
 def fetch_reminder_slot_by_id(cursor, slot_id: int) -> dict | None:
@@ -577,6 +680,18 @@ def reminder_schedule(request: FastAPIRequest):
                     """
                 )
                 audio_rows = cursor.fetchall()
+
+                if table_exists(cursor, "reminder_preset"):
+                    cursor.execute(
+                        reminder_preset_select_sql()
+                        + """
+                        ORDER BY p.`is_enabled` DESC, p.`sort_order` ASC, p.`id` ASC
+                        """
+                    )
+                    preset_rows = cursor.fetchall()
+                    presets = [reminder_preset_row_to_dict(row) for row in preset_rows]
+                else:
+                    presets = build_fallback_presets_from_slots(slot_rows)
     except Exception as exc:
         return {"success": False, "message": f"query reminder schedule failed: {exc}"}
 
@@ -597,6 +712,7 @@ def reminder_schedule(request: FastAPIRequest):
                 }
                 for row in audio_rows
             ],
+            "presets": presets,
         },
     }
 
@@ -771,6 +887,189 @@ def reminder_slot_delete(payload: ReminderSlotDeletePayload, request: FastAPIReq
         return {"success": False, "message": "slot not found"}
 
     return {"success": True, "message": "slot deleted"}
+
+
+@app.get("/api/reminder/preset/list")
+def reminder_preset_list(request: FastAPIRequest):
+    session_payload = get_session_payload(request)
+    if not session_payload:
+        return unauthorized_response()
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                if not table_exists(cursor, "reminder_preset"):
+                    return {
+                        "success": True,
+                        "message": "preset table not ready",
+                        "data": [],
+                    }
+
+                cursor.execute(
+                    reminder_preset_select_sql()
+                    + """
+                    ORDER BY p.`is_enabled` DESC, p.`sort_order` ASC, p.`id` ASC
+                    """
+                )
+                rows = cursor.fetchall()
+    except Exception as exc:
+        return {"success": False, "message": f"query reminder presets failed: {exc}"}
+
+    return {
+        "success": True,
+        "message": "ok",
+        "data": [reminder_preset_row_to_dict(row) for row in rows],
+    }
+
+
+@app.post("/api/reminder/preset/save")
+def reminder_preset_save(payload: ReminderPresetSavePayload, request: FastAPIRequest):
+    session_payload = get_session_payload(request)
+    if not session_payload:
+        return unauthorized_response()
+
+    name = payload.name.strip()
+    if not name:
+        return {"success": False, "message": "name is required"}
+
+    color = normalize_optional_text(payload.color)
+    audio_id = payload.audio_id
+    is_enabled = 1 if payload.is_enabled else 0
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                if not table_exists(cursor, "reminder_preset"):
+                    return {"success": False, "message": "reminder_preset table not found"}
+
+                if audio_id is not None:
+                    cursor.execute(
+                        """
+                        SELECT `id`
+                        FROM `reminder_audio_library`
+                        WHERE `id` = %s
+                        LIMIT 1
+                        """,
+                        (audio_id,),
+                    )
+                    if not cursor.fetchone():
+                        return {"success": False, "message": "audio_id not found"}
+
+                if payload.id is not None:
+                    cursor.execute(
+                        """
+                        SELECT `id`, `sort_order`
+                        FROM `reminder_preset`
+                        WHERE `id` = %s
+                        LIMIT 1
+                        """,
+                        (payload.id,),
+                    )
+                    current_preset = cursor.fetchone()
+                    if not current_preset:
+                        return {"success": False, "message": "preset not found"}
+
+                    sort_order = (
+                        payload.sort_order
+                        if payload.sort_order is not None
+                        else int(current_preset.get("sort_order") or 0)
+                    )
+                    cursor.execute(
+                        """
+                        UPDATE `reminder_preset`
+                        SET
+                            `name` = %s,
+                            `duration_min` = %s,
+                            `audio_id` = %s,
+                            `color` = %s,
+                            `is_enabled` = %s,
+                            `sort_order` = %s
+                        WHERE `id` = %s
+                        """,
+                        (
+                            name,
+                            payload.duration_min,
+                            audio_id,
+                            color,
+                            is_enabled,
+                            sort_order,
+                            payload.id,
+                        ),
+                    )
+                    preset_id = payload.id
+                else:
+                    if payload.sort_order is not None:
+                        sort_order = payload.sort_order
+                    else:
+                        cursor.execute(
+                            """
+                            SELECT COALESCE(MAX(`sort_order`), -1) + 1 AS `next_sort_order`
+                            FROM `reminder_preset`
+                            """
+                        )
+                        row = cursor.fetchone() or {}
+                        sort_order = int(row.get("next_sort_order") or 0)
+
+                    cursor.execute(
+                        """
+                        INSERT INTO `reminder_preset`
+                            (`name`, `duration_min`, `audio_id`, `color`, `is_enabled`, `sort_order`)
+                        VALUES
+                            (%s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            name,
+                            payload.duration_min,
+                            audio_id,
+                            color,
+                            is_enabled,
+                            sort_order,
+                        ),
+                    )
+                    preset_id = int(cursor.lastrowid)
+
+                preset = fetch_reminder_preset_by_id(cursor, int(preset_id))
+    except Exception as exc:
+        return {"success": False, "message": f"save reminder preset failed: {exc}"}
+
+    if not preset:
+        return {"success": False, "message": "preset not found after save"}
+
+    return {
+        "success": True,
+        "message": "preset saved",
+        "data": preset,
+    }
+
+
+@app.post("/api/reminder/preset/delete")
+def reminder_preset_delete(payload: ReminderPresetDeletePayload, request: FastAPIRequest):
+    session_payload = get_session_payload(request)
+    if not session_payload:
+        return unauthorized_response()
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                if not table_exists(cursor, "reminder_preset"):
+                    return {"success": False, "message": "reminder_preset table not found"}
+
+                cursor.execute(
+                    """
+                    DELETE FROM `reminder_preset`
+                    WHERE `id` = %s
+                    LIMIT 1
+                    """,
+                    (payload.id,),
+                )
+                deleted_count = cursor.rowcount
+    except Exception as exc:
+        return {"success": False, "message": f"delete reminder preset failed: {exc}"}
+
+    if deleted_count <= 0:
+        return {"success": False, "message": "preset not found"}
+
+    return {"success": True, "message": "preset deleted"}
 
 
 @app.get("/api/reminder/current")
