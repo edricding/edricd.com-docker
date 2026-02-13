@@ -5,12 +5,14 @@ import json
 import os
 import smtplib
 import time
+from datetime import datetime, timezone as dt_timezone
 from email.header import Header
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
 
 import bcrypt
 import pymysql
@@ -56,9 +58,27 @@ class LoginPayload(BaseModel):
     recaptchaToken: str | None = None
 
 
+class ReminderSlotSavePayload(BaseModel):
+    id: int | None = Field(default=None, ge=1)
+    weekday: int = Field(ge=1, le=7)
+    start_min: int = Field(ge=0, le=1439)
+    end_min: int = Field(ge=1, le=1440)
+    title: str = Field(min_length=1, max_length=120)
+    note: str | None = Field(default=None, max_length=500)
+    audio_id: int | None = Field(default=None, ge=1)
+    color: str | None = Field(default=None, max_length=20)
+    is_enabled: bool = True
+    sort_order: int | None = Field(default=None, ge=0, le=65535)
+
+
+class ReminderSlotDeletePayload(BaseModel):
+    id: int = Field(ge=1)
+
+
 EMAIL_TO = "edricding0108@gmail.com"
 SESSION_COOKIE_NAME = "edricd_session"
 SESSION_TTL_SECONDS = 30 * 60
+WEEK_MINUTES = 7 * 24 * 60
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 jinja_env = Environment(
@@ -261,6 +281,149 @@ def get_session_payload(request: FastAPIRequest) -> dict | None:
     return parse_session_token(request.cookies.get(SESSION_COOKIE_NAME))
 
 
+def unauthorized_response() -> JSONResponse:
+    return JSONResponse({"success": False, "message": "unauthorized"}, status_code=401)
+
+
+def normalize_optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped if stripped else None
+
+
+def load_reminder_timezone(cursor) -> str:
+    cursor.execute(
+        """
+        SELECT `timezone_name`
+        FROM `reminder_schedule_config`
+        WHERE `id` = 1
+        LIMIT 1
+        """
+    )
+    row = cursor.fetchone()
+    timezone_name = normalize_optional_text(row.get("timezone_name") if row else None)
+    if timezone_name:
+        return timezone_name
+
+    timezone_name = "Asia/Shanghai"
+    cursor.execute(
+        """
+        INSERT INTO `reminder_schedule_config` (`id`, `timezone_name`)
+        VALUES (1, %s)
+        ON DUPLICATE KEY UPDATE `timezone_name` = VALUES(`timezone_name`)
+        """,
+        (timezone_name,),
+    )
+    return timezone_name
+
+
+def resolve_timezone(timezone_name: str) -> tuple[str, object]:
+    normalized = normalize_optional_text(timezone_name) or "Asia/Shanghai"
+    try:
+        return normalized, ZoneInfo(normalized)
+    except Exception:
+        return "UTC", dt_timezone.utc
+
+
+def reminder_slot_select_sql() -> str:
+    return """
+        SELECT
+            s.`id`,
+            s.`weekday`,
+            s.`start_min`,
+            s.`end_min`,
+            s.`title`,
+            s.`note`,
+            s.`audio_id`,
+            s.`color`,
+            s.`is_enabled`,
+            s.`sort_order`,
+            a.`id` AS `audio_lib_id`,
+            a.`name` AS `audio_name`,
+            a.`gcs_url` AS `audio_url`,
+            a.`mime_type` AS `audio_mime_type`,
+            a.`duration_seconds` AS `audio_duration_seconds`
+        FROM `reminder_schedule_slot` s
+        LEFT JOIN `reminder_audio_library` a ON a.`id` = s.`audio_id`
+    """
+
+
+def reminder_slot_row_to_dict(row: dict) -> dict:
+    audio = None
+    if row.get("audio_lib_id") is not None:
+        audio = {
+            "id": int(row["audio_lib_id"]),
+            "name": row.get("audio_name"),
+            "gcs_url": row.get("audio_url"),
+            "mime_type": row.get("audio_mime_type"),
+            "duration_seconds": row.get("audio_duration_seconds"),
+        }
+
+    return {
+        "id": int(row["id"]),
+        "weekday": int(row["weekday"]),
+        "start_min": int(row["start_min"]),
+        "end_min": int(row["end_min"]),
+        "title": row.get("title") or "",
+        "note": row.get("note"),
+        "audio_id": row.get("audio_id"),
+        "color": row.get("color"),
+        "is_enabled": bool(row.get("is_enabled")),
+        "sort_order": int(row.get("sort_order") or 0),
+        "audio": audio,
+    }
+
+
+def fetch_reminder_slot_by_id(cursor, slot_id: int) -> dict | None:
+    cursor.execute(
+        reminder_slot_select_sql()
+        + """
+          WHERE s.`id` = %s
+          LIMIT 1
+        """,
+        (slot_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+    return reminder_slot_row_to_dict(row)
+
+
+def has_reminder_slot_overlap(
+    cursor,
+    weekday: int,
+    start_min: int,
+    end_min: int,
+    exclude_id: int | None = None,
+) -> bool:
+    cursor.execute(
+        """
+        SELECT 1
+        FROM `reminder_schedule_slot`
+        WHERE `weekday` = %s
+          AND `is_enabled` = 1
+          AND NOT (%s <= `start_min` OR %s >= `end_min`)
+          AND (%s IS NULL OR `id` <> %s)
+        LIMIT 1
+        """,
+        (
+            weekday,
+            end_min,
+            start_min,
+            exclude_id,
+            exclude_id,
+        ),
+    )
+    return cursor.fetchone() is not None
+
+
+def minute_to_hhmm(minute_of_day: int) -> str:
+    hour = minute_of_day // 60
+    minute = minute_of_day % 60
+    return f"{hour:02d}:{minute:02d}"
+
+
 @app.get("/api/health")
 def health():
     return {"ok": True}
@@ -379,6 +542,296 @@ def session_require(request: FastAPIRequest):
     response = Response(status_code=204)
     set_session_cookie(response, request, username=username, expires_at=expires_at)
     return response
+
+
+@app.get("/api/reminder/schedule")
+def reminder_schedule(request: FastAPIRequest):
+    session_payload = get_session_payload(request)
+    if not session_payload:
+        return unauthorized_response()
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                timezone_name = load_reminder_timezone(cursor)
+
+                cursor.execute(
+                    reminder_slot_select_sql()
+                    + """
+                    ORDER BY s.`weekday` ASC, s.`start_min` ASC, s.`sort_order` ASC, s.`id` ASC
+                    """
+                )
+                slot_rows = cursor.fetchall()
+
+                cursor.execute(
+                    """
+                    SELECT
+                        `id`,
+                        `name`,
+                        `gcs_url`,
+                        `mime_type`,
+                        `duration_seconds`,
+                        `is_active`
+                    FROM `reminder_audio_library`
+                    ORDER BY `is_active` DESC, `id` DESC
+                    """
+                )
+                audio_rows = cursor.fetchall()
+    except Exception as exc:
+        return {"success": False, "message": f"query reminder schedule failed: {exc}"}
+
+    return {
+        "success": True,
+        "message": "ok",
+        "data": {
+            "timezone": timezone_name,
+            "slots": [reminder_slot_row_to_dict(row) for row in slot_rows],
+            "audios": [
+                {
+                    "id": int(row["id"]),
+                    "name": row.get("name"),
+                    "gcs_url": row.get("gcs_url"),
+                    "mime_type": row.get("mime_type"),
+                    "duration_seconds": row.get("duration_seconds"),
+                    "is_active": bool(row.get("is_active")),
+                }
+                for row in audio_rows
+            ],
+        },
+    }
+
+
+@app.post("/api/reminder/slot/save")
+def reminder_slot_save(payload: ReminderSlotSavePayload, request: FastAPIRequest):
+    session_payload = get_session_payload(request)
+    if not session_payload:
+        return unauthorized_response()
+
+    title = payload.title.strip()
+    if not title:
+        return {"success": False, "message": "title is required"}
+    if payload.start_min >= payload.end_min:
+        return {"success": False, "message": "start_min must be less than end_min"}
+
+    note = normalize_optional_text(payload.note)
+    color = normalize_optional_text(payload.color)
+    audio_id = payload.audio_id
+    is_enabled = 1 if payload.is_enabled else 0
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                if audio_id is not None:
+                    cursor.execute(
+                        """
+                        SELECT `id`
+                        FROM `reminder_audio_library`
+                        WHERE `id` = %s
+                        LIMIT 1
+                        """,
+                        (audio_id,),
+                    )
+                    if not cursor.fetchone():
+                        return {"success": False, "message": "audio_id not found"}
+
+                if payload.id is not None:
+                    cursor.execute(
+                        """
+                        SELECT `id`, `sort_order`
+                        FROM `reminder_schedule_slot`
+                        WHERE `id` = %s
+                        LIMIT 1
+                        """,
+                        (payload.id,),
+                    )
+                    current_slot = cursor.fetchone()
+                    if not current_slot:
+                        return {"success": False, "message": "slot not found"}
+
+                    if is_enabled == 1 and has_reminder_slot_overlap(
+                        cursor,
+                        payload.weekday,
+                        payload.start_min,
+                        payload.end_min,
+                        payload.id,
+                    ):
+                        return {
+                            "success": False,
+                            "message": "time slot overlaps with existing slot",
+                        }
+
+                    sort_order = (
+                        payload.sort_order
+                        if payload.sort_order is not None
+                        else int(current_slot.get("sort_order") or payload.start_min)
+                    )
+                    cursor.execute(
+                        """
+                        UPDATE `reminder_schedule_slot`
+                        SET
+                            `weekday` = %s,
+                            `start_min` = %s,
+                            `end_min` = %s,
+                            `title` = %s,
+                            `note` = %s,
+                            `audio_id` = %s,
+                            `color` = %s,
+                            `is_enabled` = %s,
+                            `sort_order` = %s
+                        WHERE `id` = %s
+                        """,
+                        (
+                            payload.weekday,
+                            payload.start_min,
+                            payload.end_min,
+                            title,
+                            note,
+                            audio_id,
+                            color,
+                            is_enabled,
+                            sort_order,
+                            payload.id,
+                        ),
+                    )
+                    slot_id = payload.id
+                else:
+                    if is_enabled == 1 and has_reminder_slot_overlap(
+                        cursor,
+                        payload.weekday,
+                        payload.start_min,
+                        payload.end_min,
+                    ):
+                        return {
+                            "success": False,
+                            "message": "time slot overlaps with existing slot",
+                        }
+
+                    sort_order = (
+                        payload.sort_order
+                        if payload.sort_order is not None
+                        else payload.start_min
+                    )
+                    cursor.execute(
+                        """
+                        INSERT INTO `reminder_schedule_slot`
+                            (`weekday`, `start_min`, `end_min`, `title`, `note`, `audio_id`, `color`, `is_enabled`, `sort_order`)
+                        VALUES
+                            (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            payload.weekday,
+                            payload.start_min,
+                            payload.end_min,
+                            title,
+                            note,
+                            audio_id,
+                            color,
+                            is_enabled,
+                            sort_order,
+                        ),
+                    )
+                    slot_id = int(cursor.lastrowid)
+
+                slot = fetch_reminder_slot_by_id(cursor, int(slot_id))
+    except Exception as exc:
+        return {"success": False, "message": f"save reminder slot failed: {exc}"}
+
+    if not slot:
+        return {"success": False, "message": "slot not found after save"}
+
+    return {
+        "success": True,
+        "message": "slot saved",
+        "data": slot,
+    }
+
+
+@app.post("/api/reminder/slot/delete")
+def reminder_slot_delete(payload: ReminderSlotDeletePayload, request: FastAPIRequest):
+    session_payload = get_session_payload(request)
+    if not session_payload:
+        return unauthorized_response()
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    DELETE FROM `reminder_schedule_slot`
+                    WHERE `id` = %s
+                    LIMIT 1
+                    """,
+                    (payload.id,),
+                )
+                deleted_count = cursor.rowcount
+    except Exception as exc:
+        return {"success": False, "message": f"delete reminder slot failed: {exc}"}
+
+    if deleted_count <= 0:
+        return {"success": False, "message": "slot not found"}
+
+    return {"success": True, "message": "slot deleted"}
+
+
+@app.get("/api/reminder/current")
+def reminder_current(request: FastAPIRequest):
+    session_payload = get_session_payload(request)
+    if not session_payload:
+        return unauthorized_response()
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                timezone_name = load_reminder_timezone(cursor)
+                normalized_timezone, tzinfo = resolve_timezone(timezone_name)
+                now_dt = datetime.now(tzinfo)
+                weekday = now_dt.isoweekday()
+                minute_of_day = now_dt.hour * 60 + now_dt.minute
+
+                cursor.execute(
+                    reminder_slot_select_sql()
+                    + """
+                    WHERE s.`is_enabled` = 1
+                    ORDER BY s.`weekday` ASC, s.`start_min` ASC, s.`sort_order` ASC, s.`id` ASC
+                    """
+                )
+                slot_rows = cursor.fetchall()
+    except Exception as exc:
+        return {"success": False, "message": f"query current reminder failed: {exc}"}
+
+    slots = [reminder_slot_row_to_dict(row) for row in slot_rows]
+
+    now_week_minute = (weekday - 1) * 1440 + minute_of_day
+    current_slot = None
+    next_slot = None
+    min_delta = None
+
+    for slot in slots:
+        if slot["weekday"] == weekday and slot["start_min"] <= minute_of_day < slot["end_min"]:
+            current_slot = slot
+
+        slot_week_minute = (slot["weekday"] - 1) * 1440 + slot["start_min"]
+        delta = slot_week_minute - now_week_minute
+        if delta <= 0:
+            delta += WEEK_MINUTES
+        if min_delta is None or delta < min_delta:
+            min_delta = delta
+            next_slot = slot
+
+    return {
+        "success": True,
+        "message": "ok",
+        "data": {
+            "timezone": normalized_timezone,
+            "server_now": now_dt.isoformat(),
+            "weekday": weekday,
+            "minute_of_day": minute_of_day,
+            "hhmm": minute_to_hhmm(minute_of_day),
+            "current_slot": current_slot,
+            "next_slot": next_slot,
+            "minutes_until_next": min_delta,
+        },
+    }
 
 
 @app.get("/api/users")
