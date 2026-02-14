@@ -36,6 +36,28 @@
     #event-preset-list tbody tr.js-preset-row {
         cursor: pointer;
     }
+
+    #event-preset-list .js-preset-enable-wrap {
+        padding-left: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    #event-preset-list .js-preset-enable-wrap .form-check-input {
+        float: none;
+        margin-left: 0;
+        cursor: pointer;
+    }
+
+    #event-preset-list .js-preset-enable:not(:checked) {
+        border-color: #dc3545;
+        background-color: rgba(220, 53, 69, 0.45);
+    }
+
+    #event-preset-list .js-preset-enable:not(:checked):focus {
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+    }
 </style>
 </head>
 
@@ -326,19 +348,19 @@
                                         
                                     </div>
 
-                                    <div class="d-flex flex-wrap align-items-center gap-2">
-                                        <button type="button" class="btn btn-danger" id="btn-delete-preset">
-                                            Delete
-                                        </button>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-danger" id="btn-delete-preset">
+                                        Delete
+                                    </button>
 
-                                        <button type="button" class="btn btn-light ms-auto" data-bs-dismiss="modal">
-                                            Close
-                                        </button>
+                                    <button type="button" class="btn btn-light ms-auto" data-bs-dismiss="modal">
+                                        Close
+                                    </button>
 
-                                        <button type="submit" class="btn btn-primary" id="btn-save-preset">
-                                            Save
-                                        </button>
-                                    </div>
+                                    <button type="submit" class="btn btn-primary" id="btn-save-preset">
+                                        Save
+                                    </button>
                                 </div>
                             </form>
                         </div>

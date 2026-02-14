@@ -301,20 +301,13 @@
       var switchId = "preset-enable-" + String(presetId);
       var statusSwitch =
         '<div class="form-check form-switch mb-0 js-preset-enable-wrap">' +
-        '<input class="form-check-input js-preset-enable" type="checkbox" role="switch" id="' +
+        '<input class="form-check-input js-preset-enable" type="checkbox" role="switch" aria-label="Toggle preset enabled" id="' +
         escapeHtml(switchId) +
         '" data-preset-id="' +
         escapeHtml(String(presetId)) +
         '"' +
         (isEnabled ? " checked" : "") +
         ">" +
-        '<label class="form-check-label small ' +
-        (isEnabled ? "text-success" : "text-danger") +
-        '" for="' +
-        escapeHtml(switchId) +
-        '">' +
-        (isEnabled ? "Enabled" : "Disabled") +
-        "</label>" +
         "</div>";
 
       html +=
