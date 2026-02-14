@@ -478,19 +478,25 @@
       var audioName = this.deriveAudioName(audio);
       var audioUrl = normalizeText(audio.gcs_url);
       var audioUrlCell = "-";
+      var audioPreviewCell = "-";
       if (audioUrl) {
         audioUrlCell =
-          '<a href="' +
+          '<a href="javascript:void(0);" ' +
+          'class="link-reset fs-20 p-1 text-primary audio-url-tooltip" ' +
+          'data-bs-toggle="tooltip" data-bs-trigger="hover focus" data-bs-placement="top" ' +
+          'data-bs-title="' +
           escapeHtml(audioUrl) +
-          '" target="_blank" rel="noopener noreferrer" class="audio-url-link">' +
-          escapeHtml(shortenText(audioUrl, 90)) +
+          '" title="' +
+          escapeHtml(audioUrl) +
+          '" aria-label="Show URL tooltip">' +
+          '<i class="ti ti-link"></i>' +
           "</a>";
-      }
 
-      var statusBadge =
-        audio.is_active === false
-          ? '<span class="badge bg-danger-subtle text-danger">Inactive</span>'
-          : '<span class="badge bg-success-subtle text-success">Active</span>';
+        audioPreviewCell =
+          '<audio class="audio-preview-player" controls preload="none" src="' +
+          escapeHtml(audioUrl) +
+          '"></audio>';
+      }
 
       html +=
         '<tr data-audio-id="' +
@@ -506,7 +512,7 @@
         audioUrlCell +
         "</td>" +
         "<td>" +
-        statusBadge +
+        audioPreviewCell +
         "</td>" +
         '<td class="text-center text-muted">' +
         '<a href="javascript:void(0);" class="link-reset fs-20 p-1 js-audio-edit-btn" data-audio-id="' +
@@ -517,6 +523,18 @@
     }
 
     this.audioTableBodyEl.innerHTML = html || '<tr><td colspan="5" class="text-muted">No audio records found.</td></tr>';
+    this.initTooltips(this.audioTableBodyEl);
+  };
+
+  ReminderSettings.prototype.initTooltips = function (rootEl) {
+    if (!window.bootstrap || !window.bootstrap.Tooltip || !rootEl) {
+      return;
+    }
+
+    var tooltipEls = rootEl.querySelectorAll('[data-bs-toggle="tooltip"]');
+    for (var i = 0; i < tooltipEls.length; i += 1) {
+      window.bootstrap.Tooltip.getOrCreateInstance(tooltipEls[i]);
+    }
   };
 
   ReminderSettings.prototype.findPresetById = function (presetId) {
