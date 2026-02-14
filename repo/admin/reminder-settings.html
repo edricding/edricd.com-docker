@@ -25,43 +25,11 @@
 <!-- Icons css -->
 <link href="/css/icons.min.css" rel="stylesheet" type="text/css" />
 
+<!-- Reminder Settings css -->
+<link href="/css/reminder-settings.css" rel="stylesheet" type="text/css" />
+
 <!-- Sweet Alert css-->
 <link href="/vendor/sweetalert2/sweetalert2.min.css" rel="stylesheet" type="text/css" />
-<style>
-    .preset-color-badge {
-        min-width: 92px;
-        text-transform: uppercase;
-    }
-
-    #event-preset-list tbody tr.js-preset-row {
-        cursor: pointer;
-    }
-
-    #event-preset-list .preset-enable-switch {
-        padding-left: 0;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-
-    #event-preset-list .preset-enable-switch .form-check-input {
-        float: none;
-        margin-left: 0;
-        cursor: pointer;
-    }
-
-    #event-preset-list .js-preset-enable:not(:checked) {
-        --bs-form-switch-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23ffffff'/%3e%3c/svg%3e");
-        background-color: var(--bs-danger, #dc3545);
-        border-color: var(--bs-danger, #dc3545);
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-    }
-
-    #event-preset-list .js-preset-enable:not(:checked):focus {
-        border-color: var(--bs-danger, #dc3545);
-        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.35);
-    }
-</style>
 </head>
 
 <body>
@@ -72,9 +40,9 @@
             <!-- Brand Logo -->
             <a href="/index" class="logo">
                 <span class="logo-light">
-                    <span class="logo-lg"><img
+                    <span class="logo-lg"><img class="reminder-settings-logo"
                             src="https://storage.googleapis.com/bucket-edricd/images/logo/logo-light.gif" alt="logo"
-                            style="width: 70%;height: auto;" /></span>
+                             /></span>
                     <span class="logo-sm text-center"><img src="images/favico.png" alt="small logo" /></span>
                 </span>
             </a>
@@ -206,7 +174,7 @@
 
             <div class="page-container">
 
-                
+
                 <div class="page-title-head d-flex align-items-sm-center flex-sm-row flex-column gap-2">
                     <div class="flex-grow-1">
                         <h4 class="fs-18 text-uppercase fw-bold mb-0">Settings</h4>
@@ -215,38 +183,40 @@
                     <div class="text-end">
                         <ol class="breadcrumb m-0 py-0">
                             <li class="breadcrumb-item"><a href="javascript: void(0);">Edricd</a></li>
-                            
+
                             <li class="breadcrumb-item"><a href="javascript: void(0);">Reminder</a></li>
-                            
+
                             <li class="breadcrumb-item active">Settings</li>
                         </ol>
                     </div>
                 </div>
-                
 
-              
+
+
 
                 <div class="row">
                     <div class="col-12">
                         <div class="card">
-                           
+
 
                             <div class="card-body">
-                                
+
                                 <ul class="nav nav-tabs nav-bordered mb-3">
                                     <li class="nav-item">
-                                        <a href="#tab-event" data-bs-toggle="tab" aria-expanded="false" class="nav-link active">
+                                        <a href="#tab-event" data-bs-toggle="tab" aria-expanded="false"
+                                            class="nav-link active">
                                             <i class="ti ti-calendar-event fs-18 me-md-1"></i>
                                             <span class="d-none d-md-inline-block">Event</span>
                                         </a>
                                     </li>
                                     <li class="nav-item">
-                                        <a href="#tab-audio" data-bs-toggle="tab" aria-expanded="true" class="nav-link ">
+                                        <a href="#tab-audio" data-bs-toggle="tab" aria-expanded="true"
+                                            class="nav-link ">
                                             <i class="ti ti-bell-ringing fs-18 me-md-1"></i>
                                             <span class="d-none d-md-inline-block">Audio</span>
                                         </a>
                                     </li>
-                                    
+
                                 </ul>
 
                                 <div class="tab-content">
@@ -254,7 +224,8 @@
                                         <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                                             <div class="flex-grow-1">
                                                 <h5 class="mb-1">Event Presets</h5>
-                                                <p class="text-muted mb-0">Table style from basic tables, click row to edit.</p>
+                                                <p class="text-muted mb-0">Table style from basic tables, click row to
+                                                    edit.</p>
                                             </div>
                                             <button type="button" class="btn btn-primary" id="btn-add-preset">
                                                 <i class="ti ti-plus me-1"></i>
@@ -286,18 +257,18 @@
                                     <div class="tab-pane" id="tab-audio">
                                         <p class="text-muted mb-0">Audio settings will be added next.</p>
                                     </div>
-                                    
+
                                 </div>
 
                             </div> <!-- end card-body -->
                         </div> <!-- end card-->
                     </div> <!-- end col -->
 
-                  
+
                 </div>
                 <!-- end row -->
 
-                 <!-- Preset MODAL -->
+                <!-- Preset MODAL -->
                 <div class="modal fade" id="preset-modal" tabindex="-1">
                     <div class="modal-dialog">
                         <div class="modal-content">
@@ -306,28 +277,34 @@
                                     <h4 class="modal-title" id="preset-modal-title">
                                         Add Preset
                                     </h4>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                        aria-label="Close"></button>
                                 </div>
                                 <div class="modal-body">
                                     <input type="hidden" id="preset-id" />
                                     <div class="row">
                                         <div class="col-12">
                                             <div class="mb-2">
-                                                <label class="control-label form-label" for="preset-name">Preset Name</label>
-                                                <input class="form-control" placeholder="Insert preset name" type="text" id="preset-name" required maxlength="120" />
+                                                <label class="control-label form-label" for="preset-name">Preset
+                                                    Name</label>
+                                                <input class="form-control" placeholder="Insert preset name" type="text"
+                                                    id="preset-name" required maxlength="120" />
                                                 <div class="invalid-feedback">Please provide a preset name</div>
                                             </div>
                                         </div>
                                         <div class="col-md-6">
                                             <div class="mb-2">
-                                                <label class="control-label form-label" for="preset-duration">Duration (minutes)</label>
-                                                <input class="form-control" type="number" id="preset-duration" min="1" max="1439" value="30" required />
+                                                <label class="control-label form-label" for="preset-duration">Duration
+                                                    (minutes)</label>
+                                                <input class="form-control" type="number" id="preset-duration" min="1"
+                                                    max="1439" value="30" required />
                                                 <div class="invalid-feedback">Duration must be 1-1439 minutes</div>
                                             </div>
                                         </div>
                                         <div class="col-md-6">
                                             <div class="mb-2">
-                                                <label class="control-label form-label" for="preset-category">Category</label>
+                                                <label class="control-label form-label"
+                                                    for="preset-category">Category</label>
                                                 <select class="form-select" id="preset-category" required>
                                                     <option value="bg-primary">Blue</option>
                                                     <option value="bg-secondary">Gray Dark</option>
@@ -348,7 +325,7 @@
                                                 </select>
                                             </div>
                                         </div>
-                                        
+
                                     </div>
 
                                 </div>
@@ -381,7 +358,9 @@
                 <div class="page-container">
                     <div class="row">
                         <div class="col-md-6 text-center text-md-start">
-                            <script>document.write(new Date().getFullYear())</script> © EDRICD - By <span class="fw-bold text-decoration-underline text-uppercase text-reset fs-12">Edric Ding</span>
+                            <script>document.write(new Date().getFullYear())</script> © EDRICD - By <span
+                                class="fw-bold text-decoration-underline text-uppercase text-reset fs-12">Edric
+                                Ding</span>
                         </div>
                         <div class="col-md-6">
                             <div class="text-md-end footer-links d-none d-md-block">
@@ -415,22 +394,22 @@
     <script src="/js/reminder-settings.js"></script>
     <script src="/js/BackendHttpRequest.js"></script>
     <script>
-        (function () {
-            var logoutBtn = document.getElementById("logout-btn");
-            if (!logoutBtn) {
-                return;
-            }
-            logoutBtn.addEventListener("click", function (e) {
-                e.preventDefault();
-                fetch("/api/AuthLogout", {
-                    method: "POST",
-                    credentials: "include",
-                })
-                    .finally(function () {
-                        window.location.href = "/login";
-                    });
-            });
-        })();
+            (function () {
+                var logoutBtn = document.getElementById("logout-btn");
+                if (!logoutBtn) {
+                    return;
+                }
+                logoutBtn.addEventListener("click", function (e) {
+                    e.preventDefault();
+                    fetch("/api/AuthLogout", {
+                        method: "POST",
+                        credentials: "include",
+                    })
+                        .finally(function () {
+                            window.location.href = "/login";
+                        });
+                });
+            })();
     </script>
 </body>
 
