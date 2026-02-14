@@ -36,3 +36,12 @@
     border-color: var(--bs-danger, #dc3545);
     box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.35);
 }
+
+.audio-url-link {
+    display: inline-block;
+    max-width: 520px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+}

@@ -255,7 +255,34 @@
                                         </div>
                                     </div>
                                     <div class="tab-pane" id="tab-audio">
-                                        <p class="text-muted mb-0">Audio settings will be added next.</p>
+                                        <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                                            <div class="flex-grow-1">
+                                                <h5 class="mb-1">Audio Library</h5>
+                                                <p class="text-muted mb-0">Store your Google Bucket audio URLs here.</p>
+                                            </div>
+                                            <button type="button" class="btn btn-primary" id="btn-add-audio">
+                                                <i class="ti ti-plus me-1"></i>
+                                                Add Audio
+                                            </button>
+                                        </div>
+                                        <div id="audio-list" class="table-responsive-sm">
+                                            <table class="table table-hover mb-0 align-middle">
+                                                <thead>
+                                                    <tr>
+                                                        <th>#</th>
+                                                        <th>Name</th>
+                                                        <th>Google Bucket URL</th>
+                                                        <th>Status</th>
+                                                        <th class="text-center">Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="audio-table-body">
+                                                    <tr>
+                                                        <td colspan="5" class="text-muted">Loading audio records...</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
 
                                 </div>
@@ -347,6 +374,57 @@
                         <!-- end modal-content-->
                     </div>
                     <!-- end modal dialog-->
+                </div>
+                <!-- end modal-->
+
+                <!-- Audio MODAL -->
+                <div class="modal fade" id="audio-modal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <form class="needs-validation" id="audio-form" novalidate>
+                                <div class="modal-header">
+                                    <h4 class="modal-title" id="audio-modal-title">
+                                        Add Audio
+                                    </h4>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                        aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <input type="hidden" id="audio-id" />
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="mb-2">
+                                                <label class="control-label form-label" for="audio-name">Audio Name</label>
+                                                <input class="form-control" type="text" id="audio-name" maxlength="120"
+                                                    placeholder="Optional. Leave empty to use file name" />
+                                            </div>
+                                        </div>
+                                        <div class="col-md-8">
+                                            <div class="mb-2">
+                                                <label class="control-label form-label" for="audio-url">Google Bucket URL</label>
+                                                <input class="form-control" type="url" id="audio-url" required
+                                                    placeholder="https://storage.googleapis.com/your-bucket/path/file.mp3" />
+                                                <div class="invalid-feedback">Please provide a valid URL</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-danger" id="btn-delete-audio">
+                                        Delete
+                                    </button>
+
+                                    <button type="button" class="btn btn-light ms-auto" data-bs-dismiss="modal">
+                                        Close
+                                    </button>
+
+                                    <button type="submit" class="btn btn-primary" id="btn-save-audio">
+                                        Save
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                 </div>
                 <!-- end modal-->
 

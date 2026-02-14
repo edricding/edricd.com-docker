@@ -10,7 +10,7 @@ from email.header import Header
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import unquote, urlencode, urlparse
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
@@ -86,6 +86,19 @@ class ReminderPresetSavePayload(BaseModel):
 
 
 class ReminderPresetDeletePayload(BaseModel):
+    id: int = Field(ge=1)
+
+
+class ReminderAudioSavePayload(BaseModel):
+    id: int | None = Field(default=None, ge=1)
+    name: str | None = Field(default=None, max_length=120)
+    gcs_url: str = Field(min_length=1, max_length=1024)
+    mime_type: str | None = Field(default=None, max_length=64)
+    duration_seconds: int | None = Field(default=None, ge=0, le=65535)
+    is_active: bool = True
+
+
+class ReminderAudioDeletePayload(BaseModel):
     id: int = Field(ge=1)
 
 
@@ -373,6 +386,62 @@ def reminder_audio_from_joined_row(row: dict) -> dict | None:
         "mime_type": row.get("audio_mime_type"),
         "duration_seconds": row.get("audio_duration_seconds"),
     }
+
+
+def reminder_audio_row_to_dict(row: dict) -> dict:
+    return {
+        "id": int(row["id"]),
+        "name": row.get("name") or "",
+        "gcs_url": row.get("gcs_url"),
+        "mime_type": row.get("mime_type"),
+        "duration_seconds": row.get("duration_seconds"),
+        "is_active": bool(row.get("is_active")),
+    }
+
+
+def derive_reminder_audio_name(name: str | None, gcs_url: str) -> str:
+    normalized_name = normalize_optional_text(name)
+    if normalized_name:
+        return normalized_name[:120]
+
+    parsed_path = ""
+    try:
+        parsed_path = urlparse(gcs_url).path or ""
+    except Exception:
+        parsed_path = ""
+
+    candidate = parsed_path.rsplit("/", 1)[-1] if parsed_path else ""
+    try:
+        candidate = unquote(candidate)
+    except Exception:
+        pass
+    candidate = normalize_optional_text(candidate)
+    if candidate:
+        return candidate[:120]
+
+    return "Untitled Audio"
+
+
+def fetch_reminder_audio_by_id(cursor, audio_id: int) -> dict | None:
+    cursor.execute(
+        """
+        SELECT
+            `id`,
+            `name`,
+            `gcs_url`,
+            `mime_type`,
+            `duration_seconds`,
+            `is_active`
+        FROM `reminder_audio_library`
+        WHERE `id` = %s
+        LIMIT 1
+        """,
+        (audio_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return None
+    return reminder_audio_row_to_dict(row)
 
 
 def reminder_slot_row_to_dict(row: dict) -> dict:
@@ -666,20 +735,23 @@ def reminder_schedule(request: FastAPIRequest):
                 )
                 slot_rows = cursor.fetchall()
 
-                cursor.execute(
-                    """
-                    SELECT
-                        `id`,
-                        `name`,
-                        `gcs_url`,
-                        `mime_type`,
-                        `duration_seconds`,
-                        `is_active`
-                    FROM `reminder_audio_library`
-                    ORDER BY `is_active` DESC, `id` DESC
-                    """
-                )
-                audio_rows = cursor.fetchall()
+                if table_exists(cursor, "reminder_audio_library"):
+                    cursor.execute(
+                        """
+                        SELECT
+                            `id`,
+                            `name`,
+                            `gcs_url`,
+                            `mime_type`,
+                            `duration_seconds`,
+                            `is_active`
+                        FROM `reminder_audio_library`
+                        ORDER BY `is_active` DESC, `id` DESC
+                        """
+                    )
+                    audio_rows = cursor.fetchall()
+                else:
+                    audio_rows = []
 
                 if table_exists(cursor, "reminder_preset"):
                     cursor.execute(
@@ -701,17 +773,7 @@ def reminder_schedule(request: FastAPIRequest):
         "data": {
             "timezone": timezone_name,
             "slots": [reminder_slot_row_to_dict(row) for row in slot_rows],
-            "audios": [
-                {
-                    "id": int(row["id"]),
-                    "name": row.get("name"),
-                    "gcs_url": row.get("gcs_url"),
-                    "mime_type": row.get("mime_type"),
-                    "duration_seconds": row.get("duration_seconds"),
-                    "is_active": bool(row.get("is_active")),
-                }
-                for row in audio_rows
-            ],
+            "audios": [reminder_audio_row_to_dict(row) for row in audio_rows],
             "presets": presets,
         },
     }
@@ -1070,6 +1132,177 @@ def reminder_preset_delete(payload: ReminderPresetDeletePayload, request: FastAP
         return {"success": False, "message": "preset not found"}
 
     return {"success": True, "message": "preset deleted"}
+
+
+@app.get("/api/reminder/audio/list")
+def reminder_audio_list(request: FastAPIRequest):
+    session_payload = get_session_payload(request)
+    if not session_payload:
+        return unauthorized_response()
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                if not table_exists(cursor, "reminder_audio_library"):
+                    return {
+                        "success": True,
+                        "message": "audio table not ready",
+                        "data": [],
+                    }
+
+                cursor.execute(
+                    """
+                    SELECT
+                        `id`,
+                        `name`,
+                        `gcs_url`,
+                        `mime_type`,
+                        `duration_seconds`,
+                        `is_active`
+                    FROM `reminder_audio_library`
+                    ORDER BY `is_active` DESC, `id` DESC
+                    """
+                )
+                rows = cursor.fetchall()
+    except Exception as exc:
+        return {"success": False, "message": f"query reminder audios failed: {exc}"}
+
+    return {
+        "success": True,
+        "message": "ok",
+        "data": [reminder_audio_row_to_dict(row) for row in rows],
+    }
+
+
+@app.post("/api/reminder/audio/save")
+def reminder_audio_save(payload: ReminderAudioSavePayload, request: FastAPIRequest):
+    session_payload = get_session_payload(request)
+    if not session_payload:
+        return unauthorized_response()
+
+    gcs_url = normalize_optional_text(payload.gcs_url)
+    if not gcs_url:
+        return {"success": False, "message": "gcs_url is required"}
+
+    name = derive_reminder_audio_name(payload.name, gcs_url)
+    mime_type = normalize_optional_text(payload.mime_type)
+    duration_seconds = payload.duration_seconds
+    is_active = 1 if payload.is_active else 0
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                if not table_exists(cursor, "reminder_audio_library"):
+                    return {"success": False, "message": "reminder_audio_library table not found"}
+
+                if payload.id is not None:
+                    cursor.execute(
+                        """
+                        SELECT `id`
+                        FROM `reminder_audio_library`
+                        WHERE `id` = %s
+                        LIMIT 1
+                        """,
+                        (payload.id,),
+                    )
+                    if not cursor.fetchone():
+                        return {"success": False, "message": "audio not found"}
+
+                    cursor.execute(
+                        """
+                        UPDATE `reminder_audio_library`
+                        SET
+                            `name` = %s,
+                            `gcs_url` = %s,
+                            `mime_type` = %s,
+                            `duration_seconds` = %s,
+                            `is_active` = %s
+                        WHERE `id` = %s
+                        """,
+                        (
+                            name,
+                            gcs_url,
+                            mime_type,
+                            duration_seconds,
+                            is_active,
+                            payload.id,
+                        ),
+                    )
+                    audio_id = payload.id
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO `reminder_audio_library`
+                            (`name`, `gcs_url`, `mime_type`, `duration_seconds`, `is_active`)
+                        VALUES
+                            (%s, %s, %s, %s, %s)
+                        """,
+                        (
+                            name,
+                            gcs_url,
+                            mime_type,
+                            duration_seconds,
+                            is_active,
+                        ),
+                    )
+                    audio_id = int(cursor.lastrowid)
+
+                audio = fetch_reminder_audio_by_id(cursor, int(audio_id))
+    except IntegrityError as exc:
+        if exc.args and len(exc.args) > 0 and exc.args[0] == 1062:
+            return {"success": False, "message": "audio URL already exists"}
+        return {"success": False, "message": f"database integrity error: {exc}"}
+    except Exception as exc:
+        return {"success": False, "message": f"save reminder audio failed: {exc}"}
+
+    if not audio:
+        return {"success": False, "message": "audio not found after save"}
+
+    return {
+        "success": True,
+        "message": "audio saved",
+        "data": audio,
+    }
+
+
+@app.post("/api/reminder/audio/delete")
+def reminder_audio_delete(payload: ReminderAudioDeletePayload, request: FastAPIRequest):
+    session_payload = get_session_payload(request)
+    if not session_payload:
+        return unauthorized_response()
+
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                if not table_exists(cursor, "reminder_audio_library"):
+                    return {"success": False, "message": "reminder_audio_library table not found"}
+
+                if table_exists(cursor, "reminder_preset"):
+                    cursor.execute(
+                        """
+                        UPDATE `reminder_preset`
+                        SET `audio_id` = NULL
+                        WHERE `audio_id` = %s
+                        """,
+                        (payload.id,),
+                    )
+
+                cursor.execute(
+                    """
+                    DELETE FROM `reminder_audio_library`
+                    WHERE `id` = %s
+                    LIMIT 1
+                    """,
+                    (payload.id,),
+                )
+                deleted_count = cursor.rowcount
+    except Exception as exc:
+        return {"success": False, "message": f"delete reminder audio failed: {exc}"}
+
+    if deleted_count <= 0:
+        return {"success": False, "message": "audio not found"}
+
+    return {"success": True, "message": "audio deleted"}
 
 
 @app.get("/api/reminder/current")

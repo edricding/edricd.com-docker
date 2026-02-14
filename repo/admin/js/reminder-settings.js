@@ -3,10 +3,14 @@
 
   var DEFAULT_COLOR = "bg-primary";
   var DEFAULT_DURATION_MIN = 30;
-  var SCHEDULE_API = "/api/reminder/schedule";
+
   var PRESET_LIST_API = "/api/reminder/preset/list";
   var PRESET_SAVE_API = "/api/reminder/preset/save";
   var PRESET_DELETE_API = "/api/reminder/preset/delete";
+
+  var AUDIO_LIST_API = "/api/reminder/audio/list";
+  var AUDIO_SAVE_API = "/api/reminder/audio/save";
+  var AUDIO_DELETE_API = "/api/reminder/audio/delete";
 
   function createApiError(message) {
     var err = new Error(message || "Request failed");
@@ -53,6 +57,21 @@
       .replace(/>/g, "&gt;")
       .replace(/\"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function normalizeText(value) {
+    if (value === null || value === undefined) {
+      return "";
+    }
+    return String(value).trim();
+  }
+
+  function shortenText(value, maxLength) {
+    var text = String(value || "");
+    if (text.length <= maxLength) {
+      return text;
+    }
+    return text.slice(0, maxLength - 3) + "...";
   }
 
   function toPositiveIntOrNull(value) {
@@ -109,18 +128,45 @@
 
     this.btnDeletePreset = document.getElementById("btn-delete-preset");
 
+    this.audioListEl = document.getElementById("audio-list");
+    this.audioTableBodyEl = document.getElementById("audio-table-body");
+    this.btnAddAudio = document.getElementById("btn-add-audio");
+
+    this.audioModalEl = document.getElementById("audio-modal");
+    this.audioFormEl = document.getElementById("audio-form");
+    this.audioModalTitleEl = document.getElementById("audio-modal-title");
+    this.audioIdEl = document.getElementById("audio-id");
+    this.audioNameEl = document.getElementById("audio-name");
+    this.audioUrlEl = document.getElementById("audio-url");
+    this.btnDeleteAudio = document.getElementById("btn-delete-audio");
+
     this.modal = null;
+    this.audioModal = null;
+
     this.audios = [];
     this.presets = [];
+
     this.selectedPresetId = null;
+    this.selectedAudioId = null;
   }
 
   ReminderSettings.prototype.init = function () {
-    if (!this.listEl || !this.tableBodyEl || !this.formEl || !this.modalEl || !window.bootstrap) {
+    if (
+      !this.listEl ||
+      !this.tableBodyEl ||
+      !this.formEl ||
+      !this.modalEl ||
+      !this.audioTableBodyEl ||
+      !this.audioFormEl ||
+      !this.audioModalEl ||
+      !window.bootstrap
+    ) {
       return;
     }
 
     this.modal = new bootstrap.Modal(this.modalEl, { backdrop: "static" });
+    this.audioModal = new bootstrap.Modal(this.audioModalEl, { backdrop: "static" });
+
     this.bindActions();
     this.loadData();
   };
@@ -144,10 +190,12 @@
         if (!trigger) {
           return;
         }
+
         var presetId = Number(trigger.getAttribute("data-preset-id"));
         if (!Number.isFinite(presetId) || presetId < 1) {
           return;
         }
+
         self.openEditModal(presetId);
       });
 
@@ -184,15 +232,55 @@
         self.resetFormState();
       });
     }
+
+    if (this.btnAddAudio) {
+      this.btnAddAudio.addEventListener("click", function () {
+        self.openCreateAudioModal();
+      });
+    }
+
+    if (this.audioListEl) {
+      this.audioListEl.addEventListener("click", function (event) {
+        var trigger = event.target.closest(".js-audio-edit-btn");
+        if (!trigger) {
+          return;
+        }
+
+        var audioId = Number(trigger.getAttribute("data-audio-id"));
+        if (!Number.isFinite(audioId) || audioId < 1) {
+          return;
+        }
+
+        self.openEditAudioModal(audioId);
+      });
+    }
+
+    if (this.audioFormEl) {
+      this.audioFormEl.addEventListener("submit", function (event) {
+        event.preventDefault();
+        self.saveAudio();
+      });
+    }
+
+    if (this.btnDeleteAudio) {
+      this.btnDeleteAudio.addEventListener("click", function () {
+        self.deleteAudio();
+      });
+    }
+
+    if (this.audioModalEl) {
+      this.audioModalEl.addEventListener("hidden.bs.modal", function () {
+        self.resetAudioFormState();
+      });
+    }
   };
 
   ReminderSettings.prototype.loadData = function () {
     return Promise.allSettled([this.loadAudios(), this.loadPresets()]).then(function (results) {
       var firstFailure = null;
       for (var i = 0; i < results.length; i += 1) {
-        var item = results[i];
-        if (item && item.status === "rejected") {
-          firstFailure = item.reason;
+        if (results[i] && results[i].status === "rejected") {
+          firstFailure = results[i].reason;
           break;
         }
       }
@@ -204,7 +292,7 @@
       console.error("Load reminder settings failed", firstFailure);
       Swal.fire({
         title: "Load Failed",
-        text: firstFailure && firstFailure.message ? firstFailure.message : "Failed to load reminder presets",
+        text: firstFailure && firstFailure.message ? firstFailure.message : "Failed to load reminder settings",
         icon: "error",
       });
     });
@@ -212,10 +300,14 @@
 
   ReminderSettings.prototype.loadAudios = function () {
     var self = this;
-    return requestJson(SCHEDULE_API, "GET").then(function (data) {
-      var payload = data && data.data ? data.data : {};
-      self.audios = Array.isArray(payload.audios) ? payload.audios : [];
+    return requestJson(AUDIO_LIST_API, "GET").then(function (data) {
+      if (!data || !data.success) {
+        throw createApiError((data && data.message) || "Failed to load audios");
+      }
+
+      self.audios = Array.isArray(data.data) ? data.data : [];
       self.renderAudioOptions();
+      self.renderAudioList();
     });
   };
 
@@ -245,7 +337,7 @@
         continue;
       }
       var audioId = String(audio.id);
-      var audioName = String(audio.name || ("Audio #" + audioId));
+      var audioName = this.deriveAudioName(audio);
       html += '<option value="' + escapeHtml(audioId) + '">' + escapeHtml(audioName) + "</option>";
     }
 
@@ -263,6 +355,20 @@
     } else {
       this.presetAudioEl.value = "";
     }
+  };
+
+  ReminderSettings.prototype.deriveAudioName = function (audio) {
+    var name = normalizeText(audio && audio.name);
+    if (name) {
+      return name;
+    }
+    var url = normalizeText(audio && audio.gcs_url);
+    if (!url) {
+      return "Untitled Audio";
+    }
+    var parts = url.split("/");
+    var last = parts.length ? parts[parts.length - 1] : "";
+    return normalizeText(last) || "Untitled Audio";
   };
 
   ReminderSettings.prototype.renderPresetList = function () {
@@ -317,11 +423,9 @@
         "<td>" +
         escapeHtml(String(i + 1)) +
         "</td>" +
-        "<td>" +
-        '<span class="fw-semibold">' +
+        "<td><span class=\"fw-semibold\">" +
         escapeHtml(name) +
-        "</span>" +
-        "</td>" +
+        "</span></td>" +
         "<td>" +
         escapeHtml(String(durationMin) + " min") +
         "</td>" +
@@ -344,9 +448,7 @@
         '<td class="text-center text-muted">' +
         '<a href="javascript:void(0);" class="link-reset fs-20 p-1 js-preset-edit-btn" data-preset-id="' +
         escapeHtml(String(presetId)) +
-        '">' +
-        '<i class="ti ti-edit"></i>' +
-        "</a>" +
+        '"><i class="ti ti-edit"></i></a>' +
         "</td>" +
         "</tr>";
     }
@@ -354,10 +456,83 @@
     this.tableBodyEl.innerHTML = html || '<tr><td colspan="8" class="text-muted">No presets found.</td></tr>';
   };
 
+  ReminderSettings.prototype.renderAudioList = function () {
+    if (!this.audioTableBodyEl) {
+      return;
+    }
+
+    if (!this.audios.length) {
+      this.audioTableBodyEl.innerHTML =
+        '<tr><td colspan="5" class="text-muted">No audio records found. Click "Add Audio" to create one.</td></tr>';
+      return;
+    }
+
+    var html = "";
+    for (var i = 0; i < this.audios.length; i += 1) {
+      var audio = this.audios[i];
+      var audioId = Number(audio && audio.id);
+      if (!Number.isFinite(audioId) || audioId < 1) {
+        continue;
+      }
+
+      var audioName = this.deriveAudioName(audio);
+      var audioUrl = normalizeText(audio.gcs_url);
+      var audioUrlCell = "-";
+      if (audioUrl) {
+        audioUrlCell =
+          '<a href="' +
+          escapeHtml(audioUrl) +
+          '" target="_blank" rel="noopener noreferrer" class="audio-url-link">' +
+          escapeHtml(shortenText(audioUrl, 90)) +
+          "</a>";
+      }
+
+      var statusBadge =
+        audio.is_active === false
+          ? '<span class="badge bg-danger-subtle text-danger">Inactive</span>'
+          : '<span class="badge bg-success-subtle text-success">Active</span>';
+
+      html +=
+        '<tr data-audio-id="' +
+        escapeHtml(String(audioId)) +
+        '">' +
+        "<td>" +
+        escapeHtml(String(i + 1)) +
+        "</td>" +
+        "<td>" +
+        escapeHtml(audioName) +
+        "</td>" +
+        "<td>" +
+        audioUrlCell +
+        "</td>" +
+        "<td>" +
+        statusBadge +
+        "</td>" +
+        '<td class="text-center text-muted">' +
+        '<a href="javascript:void(0);" class="link-reset fs-20 p-1 js-audio-edit-btn" data-audio-id="' +
+        escapeHtml(String(audioId)) +
+        '"><i class="ti ti-edit"></i></a>' +
+        "</td>" +
+        "</tr>";
+    }
+
+    this.audioTableBodyEl.innerHTML = html || '<tr><td colspan="5" class="text-muted">No audio records found.</td></tr>';
+  };
+
   ReminderSettings.prototype.findPresetById = function (presetId) {
     for (var i = 0; i < this.presets.length; i += 1) {
       var item = this.presets[i];
       if (Number(item && item.id) === Number(presetId)) {
+        return item;
+      }
+    }
+    return null;
+  };
+
+  ReminderSettings.prototype.findAudioById = function (audioId) {
+    for (var i = 0; i < this.audios.length; i += 1) {
+      var item = this.audios[i];
+      if (Number(item && item.id) === Number(audioId)) {
         return item;
       }
     }
@@ -653,6 +828,201 @@
           Swal.fire({
             title: "Delete Failed",
             text: err && err.message ? err.message : "Delete failed",
+            icon: "error",
+          });
+        });
+    });
+  };
+
+  ReminderSettings.prototype.resetAudioFormState = function () {
+    this.selectedAudioId = null;
+    if (this.audioIdEl) {
+      this.audioIdEl.value = "";
+    }
+    if (this.audioFormEl) {
+      this.audioFormEl.classList.remove("was-validated");
+    }
+  };
+
+  ReminderSettings.prototype.openCreateAudioModal = function () {
+    this.selectedAudioId = null;
+
+    if (this.audioModalTitleEl) {
+      this.audioModalTitleEl.textContent = "Add Audio";
+    }
+    if (this.audioIdEl) {
+      this.audioIdEl.value = "";
+    }
+    if (this.audioNameEl) {
+      this.audioNameEl.value = "";
+    }
+    if (this.audioUrlEl) {
+      this.audioUrlEl.value = "";
+    }
+    if (this.btnDeleteAudio) {
+      this.btnDeleteAudio.style.display = "none";
+    }
+    if (this.audioFormEl) {
+      this.audioFormEl.classList.remove("was-validated");
+    }
+
+    this.audioModal.show();
+  };
+
+  ReminderSettings.prototype.openEditAudioModal = function (audioId) {
+    var audio = this.findAudioById(audioId);
+    if (!audio) {
+      Swal.fire({
+        title: "Data Missing",
+        text: "Selected audio is no longer available. Refreshing list...",
+        icon: "warning",
+      });
+      this.loadAudios();
+      return;
+    }
+
+    this.selectedAudioId = Number(audio.id);
+
+    if (this.audioModalTitleEl) {
+      this.audioModalTitleEl.textContent = "Edit Audio";
+    }
+    if (this.audioIdEl) {
+      this.audioIdEl.value = String(audio.id);
+    }
+    if (this.audioNameEl) {
+      this.audioNameEl.value = normalizeText(audio.name);
+    }
+    if (this.audioUrlEl) {
+      this.audioUrlEl.value = normalizeText(audio.gcs_url);
+    }
+    if (this.btnDeleteAudio) {
+      this.btnDeleteAudio.style.display = "inline-block";
+    }
+    if (this.audioFormEl) {
+      this.audioFormEl.classList.remove("was-validated");
+    }
+
+    this.audioModal.show();
+  };
+
+  ReminderSettings.prototype.buildAudioSavePayload = function () {
+    var gcsUrl = normalizeText(this.audioUrlEl ? this.audioUrlEl.value : "");
+    if (!gcsUrl) {
+      throw createApiError("Google Bucket URL is required");
+    }
+
+    var payload = {
+      gcs_url: gcsUrl,
+    };
+
+    var audioName = normalizeText(this.audioNameEl ? this.audioNameEl.value : "");
+    if (audioName) {
+      payload.name = audioName;
+    }
+
+    if (this.selectedAudioId) {
+      payload.id = Number(this.selectedAudioId);
+      var currentAudio = this.findAudioById(this.selectedAudioId);
+      if (currentAudio && Object.prototype.hasOwnProperty.call(currentAudio, "is_active")) {
+        payload.is_active = currentAudio.is_active !== false;
+      }
+    }
+
+    return payload;
+  };
+
+  ReminderSettings.prototype.saveAudio = function () {
+    var self = this;
+    if (!this.audioFormEl) {
+      return;
+    }
+
+    if (!this.audioFormEl.checkValidity()) {
+      this.audioFormEl.classList.add("was-validated");
+      return;
+    }
+
+    var payload;
+    try {
+      payload = this.buildAudioSavePayload();
+    } catch (err) {
+      Swal.fire({
+        title: "Invalid Input",
+        text: err && err.message ? err.message : "Please check your inputs",
+        icon: "warning",
+      });
+      return;
+    }
+
+    requestJson(AUDIO_SAVE_API, "POST", payload)
+      .then(function (data) {
+        if (!data || !data.success) {
+          throw createApiError((data && data.message) || "Save audio failed");
+        }
+
+        self.audioModal.hide();
+        return Promise.all([self.loadAudios(), self.loadPresets()]);
+      })
+      .then(function () {
+        Swal.fire({
+          title: "Saved",
+          text: "Audio saved successfully",
+          icon: "success",
+          timer: 1200,
+          showConfirmButton: false,
+        });
+      })
+      .catch(function (err) {
+        console.error("Save audio failed", err);
+        Swal.fire({
+          title: "Save Failed",
+          text: err && err.message ? err.message : "Save audio failed",
+          icon: "error",
+        });
+      });
+  };
+
+  ReminderSettings.prototype.deleteAudio = function () {
+    var self = this;
+    if (!this.selectedAudioId) {
+      return;
+    }
+
+    Swal.fire({
+      title: "Delete Audio?",
+      text: "This audio record will be removed permanently.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Delete",
+      cancelButtonText: "Cancel",
+    }).then(function (result) {
+      if (!result || !result.isConfirmed) {
+        return;
+      }
+
+      requestJson(AUDIO_DELETE_API, "POST", { id: Number(self.selectedAudioId) })
+        .then(function (data) {
+          if (!data || !data.success) {
+            throw createApiError((data && data.message) || "Delete audio failed");
+          }
+
+          self.audioModal.hide();
+          return Promise.all([self.loadAudios(), self.loadPresets()]);
+        })
+        .then(function () {
+          Swal.fire({
+            title: "Deleted",
+            text: "Audio deleted",
+            icon: "success",
+            timer: 1200,
+            showConfirmButton: false,
+          });
+        })
+        .catch(function (err) {
+          console.error("Delete audio failed", err);
+          Swal.fire({
+            title: "Delete Failed",
+            text: err && err.message ? err.message : "Delete audio failed",
             icon: "error",
           });
         });
