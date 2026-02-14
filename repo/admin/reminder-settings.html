@@ -166,6 +166,7 @@
         <!-- ============================================================== -->
         <!-- Start Page Content here -->
         <!-- ============================================================== -->
+
         <div class="page-content">
 
             <div class="page-container">
@@ -178,7 +179,8 @@
 
                     <div class="text-end">
                         <ol class="breadcrumb m-0 py-0">
-                            <li class="breadcrumb-item"><a href="javascript: void(0);">EDRICD</a></li>
+                            <li class="breadcrumb-item"><a href="javascript: void(0);">Edricd</a></li>
+                            
                             <li class="breadcrumb-item"><a href="javascript: void(0);">Reminder</a></li>
                             
                             <li class="breadcrumb-item active">Settings</li>
@@ -187,102 +189,107 @@
                 </div>
                 
 
-                
+              
 
                 <div class="row">
-                    <div class="col-xl-3">
+                    <div class="col-xl-6">
                         <div class="card">
-                            <div class="card-body">
-                                <button class="btn btn-primary w-100" id="btn-new-event">
-                                    <i class="ti ti-plus me-2 align-middle"></i> Create New Event
-                                </button>
-
-                                <div id="external-events" class="mt-2">
-                                    <p class="text-muted mb-1">Loading presets...</p>
-                                </div>
-
+                            <div class="card-header border-bottom border-dashed d-flex align-items-center">
+                                <h4 class="header-title">Tabs Vertical Left</h4>
                             </div>
-                        </div>
-                    </div> <!-- end col-->
 
-                    <div class="col-xl-9">
+                            <div class="card-body">
+                                <p class="text-muted">
+                                    You can stack your navigation by changing the flex item direction with the <code>.flex-column</code> utility.
+                                </p>
+                                <div class="row">
+                                    <div class="col-sm-3 mb-2 mb-sm-0">
+                                        <div class="nav flex-column nav-pills" id="v-pills-tab" role="tablist" aria-orientation="vertical">
+                                            <a class="nav-link active show" id="v-pills-home-tab" data-bs-toggle="pill" href="#v-pills-home" role="tab" aria-controls="v-pills-home" aria-selected="true">
+                                                <i class="ti ti-home fs-18 me-1"></i> Home
+                                            </a>
+                                            <a class="nav-link" id="v-pills-profile-tab" data-bs-toggle="pill" href="#v-pills-profile" role="tab" aria-controls="v-pills-profile" aria-selected="false">
+                                                <i class="ti ti-user-circle fs-18 me-1"></i> Profile
+                                            </a>
+                                            <a class="nav-link" id="v-pills-settings-tab" data-bs-toggle="pill" href="#v-pills-settings" role="tab" aria-controls="v-pills-settings" aria-selected="false">
+                                                <i class="ti ti-settings fs-18 me-1"></i> Settings
+                                            </a>
+                                        </div>
+                                    </div> <!-- end col-->
+
+                                    <div class="col-sm-9">
+                                        <div class="tab-content" id="v-pills-tabContent">
+                                            <div class="tab-pane fade active show" id="v-pills-home" role="tabpanel" aria-labelledby="v-pills-home-tab">
+                                                <p class="mb-0"><span class="px-1 rounded me-1 fw-semibold d-inline-block bg-info-subtle text-info float-start">H</span>Welcome to our website! We are dedicated to providing you with the best products and services to enhance your home. Whether you're looking to spruce up your living space with stylish furniture, create a cozy atmosphere with our selection of home decor, or tackle those DIY projects with our range of tools and supplies. Explore our wide variety of products and find exactly what you need to make your house feel like a home. With our affordable prices and high-quality items.</p>
+                                            </div>
+                                            <div class="tab-pane fade" id="v-pills-profile" role="tabpanel" aria-labelledby="v-pills-profile-tab">
+                                                <p class="mb-0"><span class="px-1 rounded me-1 fw-semibold d-inline-block bg-danger-subtle text-danger float-start">P</span>Hi there! I'm a passionate individual who loves to explore new ideas and connect with like-minded people. My interests span a wide range of topics including technology, literature, travel, and fitness. I believe in the power of continuous learning and enjoy challenging myself to grow both personally and professionally. Outside of my pursuits, you can often find me immersed in a good book, exploring the outdoors, or experimenting in the kitchen.</p>
+                                            </div>
+                                            <div class="tab-pane fade" id="v-pills-settings" role="tabpanel" aria-labelledby="v-pills-settings-tab">
+                                                <p class="mb-0"><span class="px-1 rounded me-1 fw-semibold d-inline-block bg-secondary-subtle text-secondary float-start">S</span>In the heart of a bustling city lies a quaint little cafe, nestled between towering skyscrapers and historic buildings. Its cozy interior boasts warm, earthy tones accented with splashes of vibrant colors, creating a welcoming atmosphere that beckons passersby to step inside.</p>
+                                            </div>
+                                        </div> <!-- end tab-content-->
+                                    </div> <!-- end col-->
+                                </div>
+                                <!-- end row-->
+
+                            </div> <!-- end card-body -->
+                        </div> <!-- end card-->
+                    </div> <!-- end col -->
+
+                    <div class="col-xl-6">
                         <div class="card">
-                            <div class="card-body">
-                                <div id="calendar"></div>
+                            <div class="card-header border-bottom border-dashed d-flex align-items-center">
+                                <h4 class="header-title">Tabs Vertical Right</h4>
                             </div>
-                        </div>
-                    </div><!-- end col -->
+
+                            <div class="card-body">
+                                <p class="text-muted">
+                                    You can stack your navigation by changing the flex item direction with the <code>.flex-column</code> utility.
+                                </p>
+                                <div class="row">
+                                    <div class="col-sm-9">
+                                        <div class="tab-content" id="v-pills-tabContent-right">
+                                            <div class="tab-pane fade active show" id="v-pills-home2" role="tabpanel" aria-labelledby="v-pills-home-tab">
+                                                <p class="mb-0"><span class="px-1 rounded me-1 fw-semibold d-inline-block bg-info-subtle text-info float-start">H</span>Welcome to our website! We are dedicated to providing you with the best products and services to enhance your home. Whether you're looking to spruce up your living space with stylish furniture, create a cozy atmosphere with our selection of home decor, or tackle those DIY projects with our range of tools and supplies. Explore our wide variety of products and find exactly what you need to make your house feel like a home. With our affordable prices and high-quality items.</p>
+                                            </div>
+                                            <div class="tab-pane fade" id="v-pills-profile2" role="tabpanel" aria-labelledby="v-pills-profile-tab">
+                                                <p class="mb-0"><span class="px-1 rounded me-1 fw-semibold d-inline-block bg-danger-subtle text-danger float-start">P</span>Hi there! I'm a passionate individual who loves to explore new ideas and connect with like-minded people. My interests span a wide range of topics including technology, literature, travel, and fitness. I believe in the power of continuous learning and enjoy challenging myself to grow both personally and professionally. Outside of my pursuits, you can often find me immersed in a good book, exploring the outdoors, or experimenting in the kitchen.</p>
+                                            </div>
+                                            <div class="tab-pane fade" id="v-pills-settings2" role="tabpanel" aria-labelledby="v-pills-settings-tab">
+                                                <p class="mb-0"><span class="px-1 rounded me-1 fw-semibold d-inline-block bg-secondary-subtle text-secondary float-start">S</span>In the heart of a bustling city lies a quaint little cafe, nestled between towering skyscrapers and historic buildings. Its cozy interior boasts warm, earthy tones accented with splashes of vibrant colors, creating a welcoming atmosphere that beckons passersby to step inside.</p>
+                                            </div>
+                                        </div> <!-- end tabcontent-->
+                                    </div> <!-- end col-->
+
+                                    <div class="col-sm-3 mt-2 mt-sm-0">
+                                        <div class="nav flex-column nav-pills nav-pills-secondary" id="v-pills-tab2" role="tablist" aria-orientation="vertical">
+                                            <a class="nav-link active show" id="v-pills-home-tab2" data-bs-toggle="pill" href="#v-pills-home2" role="tab" aria-controls="v-pills-home2" aria-selected="true">
+                                                <i class="ti ti-home fs-18 me-1"></i>
+                                                <span class="d-none d-md-inline-block">Home</span>
+                                            </a>
+                                            <a class="nav-link" id="v-pills-profile-tab2" data-bs-toggle="pill" href="#v-pills-profile2" role="tab" aria-controls="v-pills-profile2" aria-selected="false">
+                                                <i class="ti ti-user-circle fs-18 me-1"></i>
+                                                <span class="d-none d-md-inline-block">Profile</span>
+                                            </a>
+                                            <a class="nav-link" id="v-pills-settings-tab2" data-bs-toggle="pill" href="#v-pills-settings2" role="tab" aria-controls="v-pills-settings2" aria-selected="false">
+                                                <i class="ti ti-settings fs-18 me-1"></i>
+                                                <span class="d-none d-md-inline-block">Settings</span>
+                                            </a>
+                                        </div>
+                                    </div> <!-- end col-->
+                                </div> <!-- end row-->
+
+                            </div> <!-- end card-body -->
+                        </div> <!-- end card-->
+                    </div> <!-- end col -->
                 </div>
-                <!--end row-->
+                <!-- end row -->
 
-                <!-- Add New Event MODAL -->
-                <div class="modal fade" id="event-modal" tabindex="-1">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <form class="needs-validation" name="event-form" id="forms-event" novalidate>
-                                <div class="modal-header">
-                                    <h4 class="modal-title" id="modal-title">
-                                        Create Event
-                                    </h4>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <div class="row">
-                                        <div class="col-12">
-                                            <div class="mb-2">
-                                                <label class="control-label form-label" for="event-title">Event Name</label>
-                                                <input class="form-control" placeholder="Insert Event Name" type="text" name="title" id="event-title" required />
-                                                <div class="invalid-feedback">Please provide a valid event name</div>
-                                            </div>
-                                        </div>
-                                        <div class="col-12">
-                                            <div class="mb-2">
-                                                <label class="control-label form-label" for="event-category">Category</label>
-                                                <select class="form-select" name="category" id="event-category" required>
-                                                    <option value="bg-primary">Blue</option>
-                                                    <option value="bg-secondary">Gray Dark</option>
-                                                    <option value="bg-success">Green</option>
-                                                    <option value="bg-info">Cyan</option>
-                                                    <option value="bg-warning">Yellow</option>
-                                                    <option value="bg-danger">Red</option>
-                                                    <option value="bg-dark">Dark</option>
-                                                </select>
-                                                <div class="invalid-feedback">Please select a valid event category</div>
-                                            </div>
-                                        </div>
-                                        <div class="col-12">
-                                            <div class="mb-2">
-                                                <label class="control-label form-label" for="event-audio">Audio</label>
-                                                <select class="form-select" name="audio" id="event-audio">
-                                                    <option value="">None</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="d-flex flex-wrap align-items-center gap-2">
-                                        <button type="button" class="btn btn-danger" id="btn-delete-event">
-                                            Delete
-                                        </button>
-
-                                        <button type="button" class="btn btn-light ms-auto" data-bs-dismiss="modal">
-                                            Close
-                                        </button>
-
-                                        <button type="submit" class="btn btn-primary" id="btn-save-event">
-                                            Save
-                                        </button>
-                                    </div>
-                                </div>
-                            </form>
-                        </div>
-                        <!-- end modal-content-->
-                    </div>
-                    <!-- end modal dialog-->
-                </div>
-                <!-- end modal-->
+               
 
             </div> <!-- container -->
+
 
             <!-- Footer Start -->
             <footer class="footer">
