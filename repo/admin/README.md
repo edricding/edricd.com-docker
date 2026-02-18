@@ -317,3 +317,7 @@ Request body:
 - Validation errors from FastAPI return HTTP `422`.
 - Business errors return `success: false` with a `message`.
 - DB/network issues are returned in `message` as `... failed: <reason>`.
+
+## TEMP
+
+- testing
