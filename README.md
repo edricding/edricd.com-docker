@@ -80,4 +80,4 @@ docker compose up -d
 - HTTP 会自动跳转到 HTTPS
 - 主页：`https://www.edricd.com`
 - API：`https://www.edricd.com/api/health`
-- 。。
+- 
