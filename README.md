@@ -6,6 +6,7 @@
 
 ```
 repo/
+├─ admin/                   # 后台管理 - 提供各种个人api
 ├─ backend/                 # FastAPI 后端
 │  ├─ app/
 │  │  ├─ core/
@@ -79,3 +80,4 @@ docker compose up -d
 - HTTP 会自动跳转到 HTTPS
 - 主页：`https://www.edricd.com`
 - API：`https://www.edricd.com/api/health`
+- 
