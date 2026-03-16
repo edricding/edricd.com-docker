@@ -1,4 +1,5 @@
 # edricd.com (FastAPI + Nginx + Frontend)
+-2026.03
 
 个人网站项目：前端静态页 + FastAPI 后端 + Nginx 反代，Docker Compose 一键部署，支持 Let's Encrypt HTTPS 自动续期。
 
